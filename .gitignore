@@ -1,0 +1,25 @@
+# Rust build output
+/target
+
+# Generated WASM (built by wasm-pack; run ./build.ps1)
+/web/pkg/
+
+# extension/ is assembled by ./build-ext.ps1 from web/ — only the unique files
+# (manifest.json, background.js, icons/) are tracked; the rest is generated.
+/extension/pkg/
+/extension/index.html
+/extension/style.css
+/extension/app.js
+
+# Never commit secrets or real vaults/locked files
+*.psv
+*.locked
+*.pfx
+*.p12
+*.key
+*.pem
+vault.*
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db

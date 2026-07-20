@@ -1,0 +1,161 @@
+:root {
+  --bg: #14161a;
+  --surface: #1d2026;
+  --surface-2: #262a32;
+  --border: #333844;
+  --text: #e6e8ec;
+  --muted: #8b93a1;
+  --accent: #4f8cff;
+  --accent-hover: #3d78e8;
+  --danger: #ff5c5c;
+  --ok: #43c47a;
+  --radius: 10px;
+  font-size: 15px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Centered via auto margins (not flex) so it can never left-pin, regardless of
+   viewport width or host context (http page vs chrome-extension:// tab). */
+#app { width: 100%; max-width: 720px; margin: 0 auto; padding: 24px 16px 64px; }
+.hidden { display: none !important; }
+
+/* ---------- Lock screen ---------- */
+#lock-screen { text-align: center; margin-top: 8vh; }
+#lock-screen h1 { margin: 0 0 4px; font-size: 1.9rem; }
+.tagline { color: var(--muted); margin: 0 0 28px; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  text-align: left;
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+.tabs { display: flex; gap: 6px; margin-bottom: 18px; }
+.tab {
+  flex: 1; padding: 9px; border: none; border-radius: 8px;
+  background: var(--surface-2); color: var(--muted); cursor: pointer; font: inherit;
+}
+.tab.active { background: var(--accent); color: white; }
+
+.pane { display: flex; flex-direction: column; gap: 12px; }
+
+.file-actions { display: flex; gap: 8px; }
+.file-actions button { flex: 1; }
+.hint { margin: 4px 0 0; font-size: .8rem; color: var(--muted); line-height: 1.4; }
+.hint code {
+  background: var(--surface-2); padding: 1px 5px; border-radius: 4px;
+  font-family: ui-monospace, monospace; font-size: .95em;
+}
+
+.file-drop {
+  display: flex; align-items: center; justify-content: center;
+  padding: 22px; border: 1.5px dashed var(--border); border-radius: 8px;
+  color: var(--muted); cursor: pointer; text-align: center; transition: border-color .15s;
+}
+.file-drop:hover, .file-drop.drag { border-color: var(--accent); color: var(--text); }
+.file-drop.loaded { border-style: solid; border-color: var(--ok); color: var(--text); }
+
+/* ---------- Inputs & buttons ---------- */
+input, textarea, select {
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
+  padding: 10px 12px; border-radius: 8px; font: inherit; width: 100%;
+}
+input:focus, textarea:focus { outline: none; border-color: var(--accent); }
+textarea { resize: vertical; }
+
+button {
+  padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface-2); color: var(--text); font: inherit; cursor: pointer;
+  transition: background .12s, opacity .12s;
+}
+button:hover { background: var(--border); }
+button:disabled { opacity: .5; cursor: not-allowed; }
+button.primary { background: var(--accent); border-color: var(--accent); color: white; }
+button.primary:hover { background: var(--accent-hover); }
+button.ghost { background: transparent; }
+button.small { padding: 7px 11px; font-size: .9rem; }
+
+.error { color: var(--danger); min-height: 1.2em; margin: 12px 0 0; font-size: .9rem; }
+
+/* ---------- Vault screen ---------- */
+.topbar { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; }
+.topbar #search { flex: 1; }
+.dirty { color: var(--accent); font-size: .85rem; margin: -4px 0 12px; }
+.muted { color: var(--muted); text-align: center; margin-top: 40px; }
+
+.entries { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.entry {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 12px 14px; display: flex; align-items: center; gap: 12px;
+}
+.entry .info { flex: 1; min-width: 0; }
+.entry .title { font-weight: 600; }
+.entry .sub { color: var(--muted); font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.entry .actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+/* ---------- Dialog ---------- */
+dialog {
+  background: var(--surface); color: var(--text); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 22px; width: min(440px, 92vw);
+}
+dialog::backdrop { background: rgba(0,0,0,.55); }
+#entry-form { display: flex; flex-direction: column; gap: 12px; }
+#entry-form h2 { margin: 0 0 4px; }
+#entry-form label { display: flex; flex-direction: column; gap: 5px; font-size: .85rem; color: var(--muted); }
+#entry-form input, #entry-form textarea { color: var(--text); }
+.pw-row { display: flex; gap: 6px; }
+.pw-row input { flex: 1; }
+#entry-form menu { display: flex; justify-content: flex-end; gap: 8px; margin: 8px 0 0; padding: 0; }
+
+.toast {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: var(--ok); color: #06301a; padding: 10px 18px; border-radius: 8px;
+  font-weight: 600; opacity: 0; transition: opacity .2s; pointer-events: none;
+}
+.toast.show { opacity: 1; }
+
+/* ---------- Restore banner (unsaved state after auto-lock) ---------- */
+.restore {
+  max-width: 420px; margin: 0 auto 18px; padding: 10px 14px;
+  background: rgba(79,140,255,.12); border: 1px solid var(--accent);
+  border-radius: 8px; color: var(--text); font-size: .88rem;
+}
+
+/* ---------- Reveal password in list ---------- */
+.entry .pw {
+  display: block; margin-top: 4px; font-family: ui-monospace, monospace;
+  font-size: .85rem; color: var(--accent); word-break: break-all;
+}
+
+/* ---------- Generator options + strength meter ---------- */
+.gen-opts {
+  display: flex; align-items: center; gap: 8px; margin-top: 6px;
+  font-size: .8rem; color: var(--muted);
+}
+.gen-opts .spacer { flex: 1; }
+.gen-opts input[type="number"] { width: 64px; padding: 5px 7px; }
+.gen-opts .chk { display: flex; align-items: center; gap: 5px; }
+.gen-opts .chk input { width: auto; }
+
+.strength {
+  display: block; height: 6px; margin-top: 8px; border-radius: 3px;
+  background: var(--surface-2); overflow: hidden;
+}
+#strength-bar {
+  display: block; height: 100%; width: 0; border-radius: 3px;
+  transition: width .2s, background .2s;
+}
+#strength-label { font-weight: 600; }

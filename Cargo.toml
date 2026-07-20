@@ -1,0 +1,15 @@
+[workspace]
+resolver = "2"
+members = ["crates/vault-core", "crates/vault-wasm"]
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+authors = ["gravitymir"]
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

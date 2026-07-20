@@ -1,0 +1,18 @@
+[package]
+name = "vault-core"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Portable encrypted vault: Argon2id + XChaCha20-Poly1305 over a single self-contained file"
+
+[dependencies]
+argon2 = "0.5"
+chacha20poly1305 = "0.10"
+getrandom = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+zeroize = { version = "1", features = ["derive"] }
+thiserror = "1"
+
+[dev-dependencies]
