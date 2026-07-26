@@ -100,9 +100,19 @@ function doCreate() {
   if (pw !== pw2) return lockError("Passwords don't match.");
   state.vault = JSON.parse(empty_vault_json());
   state.password = pw;
-  state.filename = "vault.psv";
+  state.filename = vaultFilename($("new-name").value);
   state.dirty = true; // nothing saved yet
   enterVault();
+}
+
+// Turn a user-typed vault name into a safe ".psv" filename ("work" -> "work.psv").
+function vaultFilename(name) {
+  const base = name.trim()
+    .replace(/\.psv$/i, "")          // don't double the extension
+    .replace(/[^\w .-]+/g, "")        // drop characters unsafe in filenames
+    .trim()
+    .replace(/\s+/g, "-");            // spaces -> dashes
+  return (base || "vault") + ".psv";
 }
 
 function lockError(msg) { $("lock-error").textContent = msg; }
@@ -201,8 +211,12 @@ function enterVault() {
   $("lock-screen").classList.add("hidden");
   $("vault-screen").classList.remove("hidden");
   $("open-password").value = "";
+  $("new-name").value = "";
   $("new-password").value = "";
   $("new-password2").value = "";
+  $("new-strength-bar").style.width = "0";
+  $("new-strength-label").textContent = "";
+  $("vault-name").textContent = "🔐 " + state.filename;
   renderEntries();
   updateDirty();
   updateRestoreNote();

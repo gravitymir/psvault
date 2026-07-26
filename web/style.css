@@ -94,6 +94,7 @@ button.small { padding: 7px 11px; font-size: .9rem; }
 .error { color: var(--danger); min-height: 1.2em; margin: 12px 0 0; font-size: .9rem; }
 
 /* ---------- Vault screen ---------- */
+.vault-name { font-weight: 600; margin: 0 0 12px; color: var(--text); }
 .topbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
 .topbar #search { flex: 1; }
 .dirty { color: var(--accent); font-size: .85rem; margin: -4px 0 12px; }

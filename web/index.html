@@ -33,6 +33,7 @@
 
         <!-- Create new -->
         <div id="pane-new" class="pane hidden">
+          <input type="text" id="new-name" placeholder="Vault name (e.g. work, personal)" autocomplete="off" />
           <input type="password" id="new-password" placeholder="New master password (min 12)" autocomplete="off" />
           <span class="strength"><span id="new-strength-bar"></span></span>
           <span id="new-strength-label" class="strength-note"></span>
@@ -61,6 +62,7 @@
 
     <!-- ===== Vault screen ===== -->
     <section id="vault-screen" class="screen hidden">
+      <p id="vault-name" class="vault-name"></p>
       <header class="topbar">
         <input type="search" id="search" placeholder="Search…" />
         <button id="add-btn" class="primary small">+ Entry</button>
