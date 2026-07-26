@@ -99,12 +99,12 @@ The "🔒 File" tab on the lock screen encrypts/decrypts **any** file under the
 master password, using the same crypto. Handy for backing up sensitive files
 (keys, `.pfx` signatures) to a cloud/messenger that has no end-to-end encryption.
 
-- **Encrypt:** pick a file → password → download `name.locked`
-- **Decrypt:** pick a `.locked` file → same password → get the original back
+- **Encrypt:** pick a file → password → download `name.filelocked`
+- **Decrypt:** pick a `.filelocked` file → same password → get the original back
 
-Both vaults and locked files use the `.locked` extension and the same on-disk
-format. Everything stays local. Core: `seal_bytes` / `open_bytes`; WASM:
-`lock_file` / `unlock_file`.
+Vaults use `.locked`, locked files use `.filelocked` — same on-disk format, the
+extension just tells them apart. Everything stays local. Core: `seal_bytes` /
+`open_bytes`; WASM: `lock_file` / `unlock_file`.
 
 ## Roadmap
 

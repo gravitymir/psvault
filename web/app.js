@@ -138,9 +138,9 @@ async function loadLockerFile(file) {
   $("file-password").focus(); // ready to type the password immediately
 }
 
-// The file's extension decides the operation: ".locked" -> decrypt, anything
-// else -> encrypt. Only the matching button is shown, and only once a file is
-// selected and a password is typed.
+// The file's extension decides the operation: an already-encrypted file
+// (".filelocked", or legacy ".locked"/".psv") -> decrypt, anything else ->
+// encrypt. Only the matching button shows, once a file and password are set.
 function updateLockerButtons() {
   const enc = $("encrypt-file-btn"), dec = $("decrypt-file-btn");
   if (!state.lockerBytes) {
@@ -148,7 +148,7 @@ function updateLockerButtons() {
     dec.classList.add("hidden");
     return;
   }
-  const isLocked = /\.locked$/i.test(state.lockerName);
+  const isLocked = /\.(filelocked|locked|psv)$/i.test(state.lockerName);
   const hasPw = $("file-password").value.length > 0;
   enc.classList.toggle("hidden", isLocked);
   dec.classList.toggle("hidden", !isLocked);
@@ -161,7 +161,7 @@ function encryptFile() {
   if (!state.lockerBytes || !pw) return;
   try {
     const out = lock_file(state.lockerBytes, pw);
-    download(out, state.lockerName + ".locked");
+    download(out, state.lockerName + ".filelocked");
     toast("File encrypted");
   } catch (e) { lockError(String(e)); }
 }
@@ -171,9 +171,9 @@ function decryptFile() {
   if (!state.lockerBytes || !pw) return;
   try {
     const out = unlock_file(state.lockerBytes, pw); // throws on wrong password
-    // Strip our encrypted-file suffix (".locked", or legacy ".psv") to restore
-    // the original name, e.g. "AndriiSukhodieiev.pfx.locked" -> ".pfx".
-    const name = state.lockerName.replace(/\.(locked|psv)$/i, "") || "decrypted";
+    // Strip our encrypted-file suffix to restore the original name, e.g.
+    // "AndriiSukhodieiev.pfx.filelocked" -> ".pfx". (".locked"/".psv" = legacy.)
+    const name = state.lockerName.replace(/\.(filelocked|locked|psv)$/i, "") || "decrypted";
     download(out, name);
     toast("File decrypted");
   } catch (e) { lockError(String(e)); }
