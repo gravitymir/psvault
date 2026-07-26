@@ -40,12 +40,10 @@
           <p class="hint">This master password <b>cannot be recovered</b>. Best choice: a passphrase of 4+ random words, or 15+ characters. Minimum 12.</p>
         </div>
 
-        <!-- Encrypt / decrypt any file (file locker) -->
+        <!-- Encrypt / decrypt any file (file locker); clicking the tab opens the picker -->
         <div id="pane-file" class="pane hidden">
-          <label class="file-drop" id="file-drop2">
-            <input type="file" id="file-input2" hidden />
-            <span id="file-label2">Choose any file…</span>
-          </label>
+          <input type="file" id="file-input2" hidden />
+          <p id="file-label2" class="file-chosen hidden"></p>
           <input type="password" id="file-password" placeholder="Master password" autocomplete="off" />
           <div class="file-actions">
             <button id="encrypt-file-btn" class="primary hidden" disabled>🔒 Encrypt</button>

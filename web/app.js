@@ -46,6 +46,10 @@ function wireLockScreen() {
   $("open-btn").onclick = doUnlock;
   $("new-btn").onclick = doCreate;
   $("new-password").addEventListener("input", updateNewStrength);
+  // Enter on any of the Create-vault fields submits.
+  for (const id of ["new-name", "new-password", "new-password2"]) {
+    $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") $("new-btn").click(); });
+  }
 }
 
 function switchTab(which) {
@@ -115,15 +119,15 @@ function lockError(msg) { $("lock-error").textContent = msg; }
 // File locker — encrypt / decrypt any single file (no vault involved)
 // ===========================================================================
 function wireFileLocker() {
-  const input = $("file-input2"), drop = $("file-drop2");
-  input.onchange = () => input.files[0] && loadLockerFile(input.files[0]);
-  drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("drag"); });
-  drop.addEventListener("dragleave", () => drop.classList.remove("drag"));
-  drop.addEventListener("drop", (e) => {
-    e.preventDefault(); drop.classList.remove("drag");
-    if (e.dataTransfer.files[0]) loadLockerFile(e.dataTransfer.files[0]);
-  });
+  $("file-input2").onchange = () => $("file-input2").files[0] && loadLockerFile($("file-input2").files[0]);
   $("file-password").addEventListener("input", updateLockerButtons);
+  // Enter triggers whichever action is currently shown (Encrypt or Decrypt).
+  $("file-password").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    const enc = $("encrypt-file-btn"), dec = $("decrypt-file-btn");
+    if (!enc.classList.contains("hidden") && !enc.disabled) enc.click();
+    else if (!dec.classList.contains("hidden") && !dec.disabled) dec.click();
+  });
   $("encrypt-file-btn").onclick = encryptFile;
   $("decrypt-file-btn").onclick = decryptFile;
 }
@@ -131,8 +135,8 @@ function wireFileLocker() {
 async function loadLockerFile(file) {
   state.lockerBytes = new Uint8Array(await file.arrayBuffer());
   state.lockerName = file.name;
-  $("file-label2").textContent = `${file.name} (${file.size} bytes)`;
-  $("file-drop2").classList.add("loaded");
+  $("file-label2").textContent = `📄 ${file.name} (${file.size} bytes)`;
+  $("file-label2").classList.remove("hidden");
   updateLockerButtons();
   lockError("");
   $("file-password").focus(); // ready to type the password immediately
