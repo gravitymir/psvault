@@ -106,8 +106,14 @@ button.small { padding: 7px 11px; font-size: .9rem; }
 .topbar { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
 .topbar-row { display: flex; gap: 8px; align-items: center; }
 .topbar-row #search { flex: 1; }
-.autolock-wrap { flex: 1; display: flex; align-items: center; gap: 8px; }
-.autolock-wrap #autolock { flex: 1; width: auto; }
+/* Lock icon sits INSIDE the select on the left (like a leading placeholder);
+   pointer-events:none lets clicks fall through to the select. */
+.autolock-wrap { flex: 1; position: relative; display: flex; align-items: center; }
+.autolock-wrap > .icon {
+  position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+  pointer-events: none; color: var(--muted);
+}
+.autolock-wrap #autolock { flex: 1; width: auto; padding-left: 46px; }
 /* Lock button: white with black text, grey border */
 #lock-btn { background: #fff; color: #000; border-color: #9aa0aa; }
 #lock-btn:hover { background: #e2e5ea; }
