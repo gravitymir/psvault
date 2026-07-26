@@ -6,7 +6,7 @@ import init, {
 const state = {
   vault: null,        // { schema, entries: [] }
   password: null,     // master password, kept only in memory while unlocked
-  filename: "vault.psv",
+  filename: "vault.locked",
   dirty: false,
   loadedBytes: null,  // Uint8Array of a picked file, awaiting unlock
   editingId: null,    // id being edited, or null when adding
@@ -34,19 +34,13 @@ AUTOLOCK_ACTIVITY.forEach((ev) => document.addEventListener(ev, resetAutoLock, {
 // Lock screen
 // ===========================================================================
 function wireLockScreen() {
-  $("tab-open").onclick = () => switchTab("open");
   $("tab-new").onclick = () => switchTab("new");
-  // Clicking the tab is a user gesture, so we can open the OS file picker right away.
+  // Clicking a file tab is a user gesture, so we open the OS picker right away.
+  // Cancelling the picker just leaves the tab open — click it again to retry.
+  $("tab-open").onclick = () => { switchTab("open"); $("file-input").click(); };
   $("tab-file").onclick = () => { switchTab("file"); $("file-input2").click(); };
 
-  const fileInput = $("file-input"), drop = $("file-drop");
-  fileInput.onchange = () => fileInput.files[0] && loadFile(fileInput.files[0]);
-  drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("drag"); });
-  drop.addEventListener("dragleave", () => drop.classList.remove("drag"));
-  drop.addEventListener("drop", (e) => {
-    e.preventDefault(); drop.classList.remove("drag");
-    if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
-  });
+  $("file-input").onchange = () => $("file-input").files[0] && loadFile($("file-input").files[0]);
 
   $("open-password").addEventListener("keydown", (e) => { if (e.key === "Enter") $("open-btn").click(); });
   $("open-btn").onclick = doUnlock;
@@ -65,8 +59,8 @@ function switchTab(which) {
 async function loadFile(file) {
   state.loadedBytes = new Uint8Array(await file.arrayBuffer());
   state.filename = file.name;
-  $("file-label").textContent = file.name;
-  $("file-drop").classList.add("loaded");
+  $("file-label").textContent = "📄 " + file.name;
+  $("file-label").classList.remove("hidden");
   $("open-btn").disabled = false;
   lockError("");
 }
@@ -105,14 +99,14 @@ function doCreate() {
   enterVault();
 }
 
-// Turn a user-typed vault name into a safe ".psv" filename ("work" -> "work.psv").
+// Turn a user-typed vault name into a safe ".locked" filename ("work" -> "work.locked").
 function vaultFilename(name) {
   const base = name.trim()
-    .replace(/\.psv$/i, "")          // don't double the extension
+    .replace(/\.(locked|psv)$/i, "") // don't double the extension
     .replace(/[^\w .-]+/g, "")        // drop characters unsafe in filenames
     .trim()
     .replace(/\s+/g, "-");            // spaces -> dashes
-  return (base || "vault") + ".psv";
+  return (base || "vault") + ".locked";
 }
 
 function lockError(msg) { $("lock-error").textContent = msg; }
@@ -239,8 +233,8 @@ function lockVault(reason) {
   state.dirty = false;
   state.editingId = null;
   if ($("entry-dialog").open) $("entry-dialog").close();
-  $("file-label").textContent = "Choose a vault file…";
-  $("file-drop").classList.remove("loaded");
+  $("file-label").textContent = "";
+  $("file-label").classList.add("hidden");
   $("open-btn").disabled = !state.snapshot; // snapshot can be unlocked with just a password
   $("open-password").value = "";
   $("vault-screen").classList.add("hidden");
@@ -324,7 +318,7 @@ function deleteEntry(id) {
 async function saveFile() {
   try {
     const bytes = lock(JSON.stringify(state.vault), state.password);
-    download(bytes, state.filename || "vault.psv");
+    download(bytes, state.filename || "vault.locked");
     state.dirty = false;
     updateDirty();
     toast("Saved");

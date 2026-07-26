@@ -7,7 +7,7 @@ your data never leaves the device in the clear.
 ## How it works
 
 ```
-master password ──Argon2id(salt)──▶ 32-byte key ──XChaCha20-Poly1305(nonce)──▶ .psv file
+master password ──Argon2id(salt)──▶ 32-byte key ──XChaCha20-Poly1305(nonce)──▶ .locked file
 ```
 
 A single Rust crypto crate (`vault-core`) is reused across every front-end:
@@ -79,7 +79,7 @@ After editing code: run `./build-ext.ps1` again, then click ↻ on the extension
 - `wasm-pack`
 - Python 3 (only for the local dev server)
 
-## `.psv` file format (v1)
+## File format (v1, `.locked`)
 
 | Offset | Size | Field |
 |---|---|---|
@@ -102,8 +102,9 @@ master password, using the same crypto. Handy for backing up sensitive files
 - **Encrypt:** pick a file → password → download `name.locked`
 - **Decrypt:** pick a `.locked` file → same password → get the original back
 
-Encrypted files get a `.locked` suffix (vs `.psv` for entry vaults). Everything
-stays local. Core: `seal_bytes` / `open_bytes`; WASM: `lock_file` / `unlock_file`.
+Both vaults and locked files use the `.locked` extension and the same on-disk
+format. Everything stays local. Core: `seal_bytes` / `open_bytes`; WASM:
+`lock_file` / `unlock_file`.
 
 ## Roadmap
 

@@ -70,6 +70,9 @@ body {
 .file-drop:hover, .file-drop.drag { border-color: var(--accent); color: var(--text); }
 .file-drop.loaded { border-style: solid; border-color: var(--ok); color: var(--text); }
 
+/* Selected-file line for the Open file tab (which has no drop zone) */
+.file-chosen { margin: 0; text-align: center; color: var(--ok); font-weight: 600; word-break: break-all; }
+
 /* ---------- Inputs & buttons ---------- */
 input, textarea, select {
   background: var(--surface-2); border: 1px solid var(--border); color: var(--text);

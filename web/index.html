@@ -16,17 +16,15 @@
 
       <div class="card">
         <div class="tabs">
-          <button id="tab-open" class="tab active">Open file</button>
           <button id="tab-new" class="tab">New vault</button>
+          <button id="tab-open" class="tab active">Open file</button>
           <button id="tab-file" class="tab">🔒 File</button>
         </div>
 
-        <!-- Open existing -->
+        <!-- Open existing: clicking the tab opens the OS file picker; no drop zone -->
         <div id="pane-open" class="pane">
-          <label class="file-drop" id="file-drop">
-            <input type="file" id="file-input" hidden />
-            <span id="file-label">Choose a vault file…</span>
-          </label>
+          <input type="file" id="file-input" hidden />
+          <p id="file-label" class="file-chosen hidden"></p>
           <input type="password" id="open-password" placeholder="Master password" autocomplete="off" />
           <button id="open-btn" class="primary" disabled>Unlock</button>
         </div>
