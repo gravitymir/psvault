@@ -74,7 +74,7 @@ body {
 .file-drop.loaded { border-style: solid; border-color: var(--ok); color: var(--text); }
 
 /* Selected-file line for the Open file tab (which has no drop zone) */
-.file-chosen { margin: 0; text-align: center; color: var(--ok); font-weight: 600; word-break: break-all; }
+.file-chosen { margin: 10px 0; text-align: center; color: var(--ok); font-weight: 600; word-break: break-all; }
 
 /* ---------- Inputs & buttons ---------- */
 input, textarea, select {
@@ -97,7 +97,9 @@ button.primary:hover { background: var(--accent-hover); }
 button.ghost { background: transparent; }
 button.small { padding: 7px 11px; font-size: .9rem; }
 
-.error { color: var(--danger); min-height: 1.2em; margin: 12px 0 0; font-size: .9rem; }
+/* No reserved min-height: when there's no error the card hugs its content. */
+.error { color: var(--danger); margin: 10px 0 0; font-size: .9rem; }
+.error:empty { margin: 0; }
 
 /* ---------- Vault screen ---------- */
 .vault-name { font-weight: 600; margin: 0 0 12px; color: var(--text); }

@@ -94,7 +94,7 @@ async function openVaultPicker() {
 async function loadFile(file) {
   state.loadedBytes = new Uint8Array(await file.arrayBuffer());
   state.filename = file.name;
-  $("file-label").textContent = "📄 " + file.name;
+  $("file-label").textContent = file.name;
   $("file-label").classList.remove("hidden");
   $("open-btn").disabled = false;
   lockError("");
@@ -168,7 +168,7 @@ function wireFileLocker() {
 async function loadLockerFile(file) {
   state.lockerBytes = new Uint8Array(await file.arrayBuffer());
   state.lockerName = file.name;
-  $("file-label2").textContent = `📄 ${file.name} (${file.size} bytes)`;
+  $("file-label2").textContent = `${file.name} (${file.size} bytes)`;
   $("file-label2").classList.remove("hidden");
   updateLockerButtons();
   lockError("");
