@@ -3,14 +3,14 @@
   --surface: #1d2026;
   --surface-2: #262a32;
   --border: #333844;
-  --text: #e6e8ec;
-  --muted: #8b93a1;
+  --text: #f2f4f7;
+  --muted: #c3cbd7;
   --accent: #4f8cff;
   --accent-hover: #3d78e8;
   --danger: #ff5c5c;
   --ok: #43c47a;
   --radius: 10px;
-  font-size: 15px;
+  font-size: 30px; /* ~2x the original 15px — larger, more readable */
 }
 
 * { box-sizing: border-box; }
@@ -25,12 +25,14 @@ body {
 
 /* Centered via auto margins (not flex) so it can never left-pin, regardless of
    viewport width or host context (http page vs chrome-extension:// tab). */
-#app { width: 100%; max-width: 720px; margin: 0 auto; padding: 24px 16px 64px; }
+#app { width: 100%; max-width: 1000px; margin: 0 auto; padding: 24px 16px 64px; }
 .hidden { display: none !important; }
 
 /* ---------- Lock screen ---------- */
 #lock-screen { text-align: center; margin-top: 8vh; }
-#lock-screen h1 { margin: 0 0 4px; font-size: 1.9rem; }
+/* Title is pinned in px so it stays a fixed size and does not scale with the
+   enlarged root font — it stays the prominent header. */
+#lock-screen h1 { margin: 0 0 4px; font-size: 44px; }
 .tagline { color: var(--muted); margin: 0 0 28px; }
 
 .card {
@@ -39,16 +41,16 @@ body {
   border-radius: var(--radius);
   padding: 20px;
   text-align: left;
-  max-width: 420px;
+  max-width: 640px;
   margin: 0 auto;
 }
 
 .tabs { display: flex; gap: 6px; margin-bottom: 18px; }
 .tab {
   flex: 1; padding: 9px; border: none; border-radius: 8px;
-  background: var(--surface-2); color: var(--muted); cursor: pointer; font: inherit;
+  background: var(--surface-2); color: var(--text); cursor: pointer; font: inherit;
 }
-.tab.active { background: var(--accent); color: white; }
+.tab.active { background: var(--accent); color: #fff; }
 
 .pane { display: flex; flex-direction: column; gap: 12px; }
 
@@ -73,6 +75,7 @@ input, textarea, select {
   background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
   padding: 10px 12px; border-radius: 8px; font: inherit; width: 100%;
 }
+::placeholder { color: var(--muted); opacity: 1; }
 input:focus, textarea:focus { outline: none; border-color: var(--accent); }
 textarea { resize: vertical; }
 
@@ -91,7 +94,7 @@ button.small { padding: 7px 11px; font-size: .9rem; }
 .error { color: var(--danger); min-height: 1.2em; margin: 12px 0 0; font-size: .9rem; }
 
 /* ---------- Vault screen ---------- */
-.topbar { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; }
+.topbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
 .topbar #search { flex: 1; }
 .dirty { color: var(--accent); font-size: .85rem; margin: -4px 0 12px; }
 .muted { color: var(--muted); text-align: center; margin-top: 40px; }
@@ -109,7 +112,7 @@ button.small { padding: 7px 11px; font-size: .9rem; }
 /* ---------- Dialog ---------- */
 dialog {
   background: var(--surface); color: var(--text); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 22px; width: min(440px, 92vw);
+  border-radius: var(--radius); padding: 22px; width: min(560px, 92vw);
 }
 dialog::backdrop { background: rgba(0,0,0,.55); }
 #entry-form { display: flex; flex-direction: column; gap: 12px; }
