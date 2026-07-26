@@ -75,8 +75,8 @@ function doUnlock() {
   // Unlock a picked file, or — if none — restore an unsaved snapshot from a
   // previous lock (both are encrypted with the same master password).
   const bytes = state.loadedBytes || state.snapshot;
-  if (!bytes) return lockError("Сначала выбери файл хранилища.");
-  if (!pw) return lockError("Введи мастер-пароль.");
+  if (!bytes) return lockError("Choose a vault file first.");
+  if (!pw) return lockError("Enter your master password.");
   try {
     const json = unlock(bytes, pw); // throws on wrong password
     const restored = !state.loadedBytes && !!state.snapshot;
@@ -87,7 +87,7 @@ function doUnlock() {
     state.snapshot = null;
     state.snapshotName = null;
     enterVault();
-    if (restored) toast("Восстановлено несохранённое состояние");
+    if (restored) toast("Restored unsaved state");
   } catch (e) {
     lockError(String(e));
   }
@@ -95,8 +95,8 @@ function doUnlock() {
 
 function doCreate() {
   const pw = $("new-password").value, pw2 = $("new-password2").value;
-  if (pw.length < 4) return lockError("Пароль слишком короткий.");
-  if (pw !== pw2) return lockError("Пароли не совпадают.");
+  if (pw.length < 4) return lockError("Password is too short.");
+  if (pw !== pw2) return lockError("Passwords don't match.");
   state.vault = JSON.parse(empty_vault_json());
   state.password = pw;
   state.filename = "vault.psv";
@@ -126,7 +126,7 @@ function wireFileLocker() {
 async function loadLockerFile(file) {
   state.lockerBytes = new Uint8Array(await file.arrayBuffer());
   state.lockerName = file.name;
-  $("file-label2").textContent = `${file.name} (${file.size} байт)`;
+  $("file-label2").textContent = `${file.name} (${file.size} bytes)`;
   $("file-drop2").classList.add("loaded");
   updateLockerButtons();
   lockError("");
@@ -157,7 +157,7 @@ function encryptFile() {
   try {
     const out = lock_file(state.lockerBytes, pw);
     download(out, state.lockerName + ".locked");
-    toast("Файл зашифрован");
+    toast("File encrypted");
   } catch (e) { lockError(String(e)); }
 }
 
@@ -170,7 +170,7 @@ function decryptFile() {
     // the original name, e.g. "AndriiSukhodieiev.pfx.locked" -> ".pfx".
     const name = state.lockerName.replace(/\.(locked|psv)$/i, "") || "decrypted";
     download(out, name);
-    toast("Файл расшифрован");
+    toast("File decrypted");
   } catch (e) { lockError(String(e)); }
 }
 
@@ -224,7 +224,7 @@ function lockVault(reason) {
   state.dirty = false;
   state.editingId = null;
   if ($("entry-dialog").open) $("entry-dialog").close();
-  $("file-label").textContent = "Выбрать файл хранилища…";
+  $("file-label").textContent = "Choose a vault file…";
   $("file-drop").classList.remove("loaded");
   $("open-btn").disabled = !state.snapshot; // snapshot can be unlocked with just a password
   $("open-password").value = "";
@@ -232,10 +232,10 @@ function lockVault(reason) {
   $("lock-screen").classList.remove("hidden");
   switchTab("open");
   updateRestoreNote();
-  if (reason === "auto") toast("Заблокировано по бездействию");
+  if (reason === "auto") toast("Locked due to inactivity");
 }
 
-// Arm/refresh the inactivity timer. No-op while locked or when set to "выкл".
+// Arm/refresh the inactivity timer. No-op while locked or when set to "off".
 function resetAutoLock() {
   clearTimeout(lockTimer);
   if (!state.vault) return;
@@ -268,12 +268,12 @@ function renderEntries() {
         <code class="pw hidden"></code>
       </div>
       <div class="actions">
-        <button class="small ghost" data-act="reveal" title="Показать пароль">👁</button>
-        <button class="small" data-act="copy">Копировать</button>
+        <button class="small ghost" data-act="reveal" title="Show password">👁</button>
+        <button class="small" data-act="copy">Copy</button>
         <button class="small" data-act="edit">✏️</button>
         <button class="small ghost" data-act="del">🗑</button>
       </div>`;
-    li.querySelector(".title").textContent = e.title || "(без названия)";
+    li.querySelector(".title").textContent = e.title || "(untitled)";
     li.querySelector(".sub").textContent = [e.username, e.url].filter(Boolean).join(" · ");
     const pwEl = li.querySelector(".pw");
     const revealBtn = li.querySelector('[data-act="reveal"]');
@@ -292,15 +292,15 @@ function renderEntries() {
 async function copyPassword(entry) {
   try {
     await navigator.clipboard.writeText(entry.password);
-    toast("Пароль скопирован");
+    toast("Password copied");
   } catch {
-    toast("Не удалось скопировать");
+    toast("Copy failed");
   }
 }
 
 function deleteEntry(id) {
   const e = state.vault.entries.find((x) => x.id === id);
-  if (!confirm(`Удалить «${e?.title || "запись"}»?`)) return;
+  if (!confirm(`Delete “${e?.title || "entry"}”?`)) return;
   state.vault.entries = state.vault.entries.filter((x) => x.id !== id);
   markDirty();
   renderEntries();
@@ -312,9 +312,9 @@ async function saveFile() {
     download(bytes, state.filename || "vault.psv");
     state.dirty = false;
     updateDirty();
-    toast("Сохранено");
+    toast("Saved");
   } catch (e) {
-    toast("Ошибка сохранения: " + e);
+    toast("Save failed: " + e);
   }
 }
 
@@ -341,7 +341,7 @@ function wireDialog() {
 function openDialog(id) {
   state.editingId = id;
   const e = id ? state.vault.entries.find((x) => x.id === id) : null;
-  $("dialog-title").textContent = id ? "Редактировать запись" : "Новая запись";
+  $("dialog-title").textContent = id ? "Edit entry" : "New entry";
   $("f-title").value = e?.title || "";
   $("f-username").value = e?.username || "";
   $("f-password").value = e?.password || "";
@@ -370,10 +370,10 @@ function updateStrength() {
   const bits = pw ? pw.length * Math.log2(pool || 1) : 0;
 
   let label = "", color = "transparent";
-  if (bits > 0 && bits < 40) { label = "Слабый"; color = "#ff5c5c"; }
-  else if (bits < 60) { label = "Средний"; color = "#ffb020"; }
-  else if (bits < 80) { label = "Хороший"; color = "#43c47a"; }
-  else if (bits >= 80) { label = "Отличный"; color = "#2fe08a"; }
+  if (bits > 0 && bits < 40) { label = "Weak"; color = "#ff5c5c"; }
+  else if (bits < 60) { label = "Fair"; color = "#ffb020"; }
+  else if (bits < 80) { label = "Good"; color = "#43c47a"; }
+  else if (bits >= 80) { label = "Strong"; color = "#2fe08a"; }
 
   const bar = $("strength-bar");
   bar.style.width = Math.min(100, Math.round(bits)) + "%"; // ~100 bits fills the bar

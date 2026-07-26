@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -8,100 +8,100 @@
 </head>
 <body>
   <main id="app">
-    <!-- ===== Экран блокировки ===== -->
+    <!-- ===== Lock screen ===== -->
     <section id="lock-screen" class="screen">
       <h1>🔐 Password Store</h1>
-      <p class="tagline">Локальное шифрованное хранилище. Данные не покидают устройство.</p>
-      <p id="restore-note" class="restore hidden">Есть несохранённое состояние — введи мастер-пароль, чтобы восстановить его.</p>
+      <p class="tagline">Local encrypted vault. Your data never leaves this device.</p>
+      <p id="restore-note" class="restore hidden">Unsaved state is kept — enter your master password to restore it.</p>
 
       <div class="card">
         <div class="tabs">
-          <button id="tab-open" class="tab active">Открыть файл</button>
-          <button id="tab-new" class="tab">Новое хранилище</button>
-          <button id="tab-file" class="tab">🔒 Файл</button>
+          <button id="tab-open" class="tab active">Open file</button>
+          <button id="tab-new" class="tab">New vault</button>
+          <button id="tab-file" class="tab">🔒 File</button>
         </div>
 
-        <!-- Открыть существующий -->
+        <!-- Open existing -->
         <div id="pane-open" class="pane">
           <label class="file-drop" id="file-drop">
             <input type="file" id="file-input" hidden />
-            <span id="file-label">Выбрать файл хранилища…</span>
+            <span id="file-label">Choose a vault file…</span>
           </label>
-          <input type="password" id="open-password" placeholder="Мастер-пароль" autocomplete="off" />
-          <button id="open-btn" class="primary" disabled>Разблокировать</button>
+          <input type="password" id="open-password" placeholder="Master password" autocomplete="off" />
+          <button id="open-btn" class="primary" disabled>Unlock</button>
         </div>
 
-        <!-- Создать новое -->
+        <!-- Create new -->
         <div id="pane-new" class="pane hidden">
-          <input type="password" id="new-password" placeholder="Новый мастер-пароль" autocomplete="off" />
-          <input type="password" id="new-password2" placeholder="Повторите пароль" autocomplete="off" />
-          <button id="new-btn" class="primary">Создать хранилище</button>
+          <input type="password" id="new-password" placeholder="New master password" autocomplete="off" />
+          <input type="password" id="new-password2" placeholder="Repeat password" autocomplete="off" />
+          <button id="new-btn" class="primary">Create vault</button>
         </div>
 
-        <!-- Зашифровать / расшифровать любой файл (файловый замок) -->
+        <!-- Encrypt / decrypt any file (file locker) -->
         <div id="pane-file" class="pane hidden">
           <label class="file-drop" id="file-drop2">
             <input type="file" id="file-input2" hidden />
-            <span id="file-label2">Выбрать любой файл…</span>
+            <span id="file-label2">Choose any file…</span>
           </label>
-          <input type="password" id="file-password" placeholder="Мастер-пароль" autocomplete="off" />
+          <input type="password" id="file-password" placeholder="Master password" autocomplete="off" />
           <div class="file-actions">
-            <button id="encrypt-file-btn" class="primary hidden" disabled>🔒 Зашифровать</button>
-            <button id="decrypt-file-btn" class="hidden" disabled>🔓 Расшифровать</button>
+            <button id="encrypt-file-btn" class="primary hidden" disabled>🔒 Encrypt</button>
+            <button id="decrypt-file-btn" class="hidden" disabled>🔓 Decrypt</button>
           </div>
-          <p class="hint">Зашифровать: выбери файл → скачаешь <code>имя.locked</code>. Расшифровать: выбери <code>.locked</code> → вернёшь оригинал. Всё локально, файл никуда не уходит.</p>
+          <p class="hint">Encrypt: pick a file → download <code>name.locked</code>. Decrypt: pick a <code>.locked</code> file → get the original back. Everything stays local.</p>
         </div>
 
         <p id="lock-error" class="error"></p>
       </div>
     </section>
 
-    <!-- ===== Экран хранилища ===== -->
+    <!-- ===== Vault screen ===== -->
     <section id="vault-screen" class="screen hidden">
       <header class="topbar">
-        <input type="search" id="search" placeholder="Поиск…" />
-        <button id="add-btn" class="primary small">+ Запись</button>
-        <button id="save-btn" class="small">💾 Сохранить</button>
-        <select id="autolock" class="small" title="Автоблокировка при бездействии">
-          <option value="60000">🔒 1 мин</option>
-          <option value="300000" selected>🔒 5 мин</option>
-          <option value="900000">🔒 15 мин</option>
-          <option value="0">🔒 выкл</option>
+        <input type="search" id="search" placeholder="Search…" />
+        <button id="add-btn" class="primary small">+ Entry</button>
+        <button id="save-btn" class="small">💾 Save</button>
+        <select id="autolock" class="small" title="Auto-lock when idle">
+          <option value="60000">🔒 1 min</option>
+          <option value="300000" selected>🔒 5 min</option>
+          <option value="900000">🔒 15 min</option>
+          <option value="0">🔒 off</option>
         </select>
-        <button id="lock-btn" class="small ghost">Заблокировать</button>
+        <button id="lock-btn" class="small ghost">Lock</button>
       </header>
-      <p id="dirty-note" class="dirty hidden">Есть несохранённые изменения — не забудь «Сохранить».</p>
+      <p id="dirty-note" class="dirty hidden">You have unsaved changes — don't forget to Save.</p>
       <ul id="entry-list" class="entries"></ul>
-      <p id="empty-note" class="muted hidden">Пусто. Нажми «+ Запись», чтобы добавить.</p>
+      <p id="empty-note" class="muted hidden">Empty. Click “+ Entry” to add one.</p>
     </section>
   </main>
 
-  <!-- ===== Модалка редактирования записи ===== -->
+  <!-- ===== Entry editor dialog ===== -->
   <dialog id="entry-dialog">
     <form method="dialog" id="entry-form">
-      <h2 id="dialog-title">Запись</h2>
-      <label>Название<input id="f-title" required /></label>
-      <label>Логин<input id="f-username" autocomplete="off" /></label>
-      <label>Пароль
+      <h2 id="dialog-title">Entry</h2>
+      <label>Title<input id="f-title" required /></label>
+      <label>Username<input id="f-username" autocomplete="off" /></label>
+      <label>Password
         <span class="pw-row">
           <input id="f-password" type="password" autocomplete="off" />
-          <button type="button" id="reveal-btn" class="small ghost" title="Показать / скрыть">👁</button>
-          <button type="button" id="gen-btn" class="small ghost" title="Сгенерировать">🎲</button>
+          <button type="button" id="reveal-btn" class="small ghost" title="Show / hide">👁</button>
+          <button type="button" id="gen-btn" class="small ghost" title="Generate">🎲</button>
         </span>
         <span class="strength"><span id="strength-bar"></span></span>
         <span class="gen-opts">
           <span id="strength-label"></span>
           <span class="spacer"></span>
-          Длина
+          Length
           <input id="gen-len" type="number" min="4" max="128" value="20" />
-          <label class="chk"><input id="gen-sym" type="checkbox" checked /> символы</label>
+          <label class="chk"><input id="gen-sym" type="checkbox" checked /> symbols</label>
         </span>
       </label>
       <label>URL<input id="f-url" /></label>
-      <label>Заметки<textarea id="f-notes" rows="3"></textarea></label>
+      <label>Notes<textarea id="f-notes" rows="3"></textarea></label>
       <menu>
-        <button value="cancel" class="ghost">Отмена</button>
-        <button value="save" id="dialog-save" class="primary">Сохранить</button>
+        <button value="cancel" class="ghost">Cancel</button>
+        <button value="save" id="dialog-save" class="primary">Save</button>
       </menu>
     </form>
   </dialog>

@@ -2,9 +2,9 @@
   "manifest_version": 3,
   "name": "Password Store",
   "version": "0.1.0",
-  "description": "Локальное шифрованное хранилище паролей. Данные не покидают устройство.",
+  "description": "Local encrypted vault for passwords and files. Your data never leaves this device.",
   "action": {
-    "default_title": "Открыть Password Store"
+    "default_title": "Open Password Store"
   },
   "background": {
     "service_worker": "background.js"

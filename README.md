@@ -1,107 +1,121 @@
 # Password Store
 
-Локальное шифрованное хранилище паролей. Один мастер-пароль защищает один
-самодостаточный файл, который можно носить на флешке или держать в облаке —
-данные никогда не покидают устройство в открытом виде.
+A local, encrypted vault for passwords and files. One master password protects
+one self-contained file that you can carry on a USB stick or keep in the cloud —
+your data never leaves the device in the clear.
 
-## Как это устроено
+## How it works
 
 ```
-мастер-пароль ──Argon2id(salt)──▶ 32-байтный ключ ──XChaCha20-Poly1305(nonce)──▶ файл .psv
+master password ──Argon2id(salt)──▶ 32-byte key ──XChaCha20-Poly1305(nonce)──▶ .psv file
 ```
 
-Один Rust-crate с криптой (`vault-core`) переиспользуется во всех «фасадах»:
+A single Rust crypto crate (`vault-core`) is reused across every front-end:
 
 ```
 vault-core (Rust)
    ├── vault-wasm  → WASM
-   │     ├── web/        → веб-страница (открыл в браузере)
-   │     └── extension/  → расширение Chrome (кнопка в тулбаре, офлайн)
-   └── (позже)     → нативный десктоп (tauri)
+   │     ├── web/        → web page (open in a browser)
+   │     └── extension/  → Chrome extension (toolbar button, offline)
+   └── (later)     → native desktop (tauri)
 ```
 
-## Структура
+## Layout
 
-| Путь | Что это |
+| Path | What it is |
 |---|---|
-| `crates/vault-core` | формат файла + шифрование, покрыто тестами |
-| `crates/vault-wasm` | тонкая WASM-обёртка (unlock / lock / генератор паролей) |
+| `crates/vault-core` | file format + encryption, covered by tests |
+| `crates/vault-wasm` | thin WASM bindings (unlock / lock / file locker / password generator) |
 | `web/` | UI: `index.html`, `style.css`, `app.js` |
-| `web/pkg/` | собранный WASM (генерируется, не редактировать) |
-| `extension/` | расширение Chrome: `manifest.json`, `background.js`, `icons/` + синхронизируемый UI |
+| `web/pkg/` | built WASM (generated, do not edit) |
+| `extension/` | Chrome extension: `manifest.json`, `background.js`, `icons/` + synced UI |
 
-## Разработка
+## Development
 
 ```powershell
-# тесты ядра
+# core tests
 cargo test
 
-# пересобрать WASM после правок в Rust
+# rebuild WASM after editing Rust
 ./build.ps1
 
-# запустить UI локально
-./run.ps1        # откроет http://127.0.0.1:8765/
+# run the UI locally (no-cache dev server)
+./run.ps1        # opens http://127.0.0.1:8765/
 
-# собрать расширение Chrome (в ./extension)
+# build the Chrome extension (into ./extension)
 ./build-ext.ps1
 ```
 
-## Расширение Chrome
+## Chrome extension
 
-Без автозаполнения — просто упакованный UI, поэтому **разрешений ноль** и ревью
-тривиальное. Для личного использования магазин не нужен.
+No autofill — it is just the packaged UI, so it requires **zero permissions**
+and review is trivial. You don't need the store for personal use.
 
-Установка (режим разработчика):
+Install (developer mode):
 
-1. `./build-ext.ps1` — собирает папку `extension/`
-2. Открой `chrome://extensions`
-3. Включи **Developer mode / Режим разработчика** (справа вверху)
-4. **Load unpacked / Загрузить распакованное** → укажи папку `extension/`
-5. Клик по иконке в тулбаре открывает хранилище в отдельной вкладке
+1. `./build-ext.ps1` — assembles the `extension/` folder
+2. Open `chrome://extensions`
+3. Enable **Developer mode** (top right)
+4. **Load unpacked** → select the `extension/` folder
+5. Clicking the toolbar icon opens the vault in a dedicated tab
 
-После правок кода: снова `./build-ext.ps1`, затем на карточке расширения жми ↻.
+After editing code: run `./build-ext.ps1` again, then click ↻ on the extension card.
 
-> Работает на десктопном Chrome (а также Edge/Brave). Мобильный Chrome
-> расширения не поддерживает — там используй веб-версию из `web/`.
+> Works on desktop Chrome (and Edge/Brave). Mobile Chrome does not support
+> extensions — use the web version from `web/` there.
 
-## Требования
+## Features
+
+- **Vault**: entries with title, username, password, URL, notes; search
+- **Password generator** with length / symbols options and a strength meter
+- **Show / hide** passwords in the list and in the editor
+- **Auto-lock** on inactivity (1 / 5 / 15 min / off); unsaved edits are kept as an
+  encrypted in-memory snapshot and restored with the master password
+- **File locker**: encrypt/decrypt *any* file under the master password
+
+## Requirements
 
 - Rust 1.96+, target `wasm32-unknown-unknown`
 - `wasm-pack`
-- Python 3 (только для локального сервера)
+- Python 3 (only for the local dev server)
 
-## Формат файла `.psv` (v1)
+## `.psv` file format (v1)
 
-| Смещение | Размер | Поле |
+| Offset | Size | Field |
 |---|---|---|
 | 0 | 4 | magic `PSV1` |
-| 4 | 1 | версия формата |
-| 5 | 12 | параметры Argon2 (m/t/p, LE u32) |
+| 4 | 1 | format version |
+| 5 | 12 | Argon2 params (m/t/p, LE u32) |
 | 17 | 16 | salt |
 | 33 | 24 | nonce (XChaCha20) |
-| 57 | … | шифртекст + тег Poly1305 |
+| 57 | … | ciphertext + Poly1305 tag |
 
-Заголовок аутентифицируется как AAD — подмена параметров KDF отклоняется при
-расшифровке.
+The header is authenticated as AAD — tampering with the KDF parameters is
+rejected on decrypt.
 
-## Файловый замок
+## File locker
 
-Вкладка «🔒 Файл» на экране блокировки шифрует/расшифровывает **любой** файл под
-мастер-паролем — тем же форматом `.psv`. Удобно для бэкапа чувствительных файлов
-(ключи, `.pfx`-подписи) в облако/мессенджер, где хранилище не имеет E2E-шифрования.
+The "🔒 File" tab on the lock screen encrypts/decrypts **any** file under the
+master password, using the same crypto. Handy for backing up sensitive files
+(keys, `.pfx` signatures) to a cloud/messenger that has no end-to-end encryption.
 
-- **Зашифровать:** выбери файл → пароль → скачаешь `имя.locked`
-- **Расшифровать:** выбери `.locked` → тот же пароль → вернёшь оригинал
+- **Encrypt:** pick a file → password → download `name.locked`
+- **Decrypt:** pick a `.locked` file → same password → get the original back
 
-Зашифрованные файлы получают суффикс `.locked` (в отличие от хранилищ записей `.psv`).
+Encrypted files get a `.locked` suffix (vs `.psv` for entry vaults). Everything
+stays local. Core: `seal_bytes` / `open_bytes`; WASM: `lock_file` / `unlock_file`.
 
-Всё локально. Ядро: `seal_bytes` / `open_bytes`; WASM: `lock_file` / `unlock_file`.
+## Roadmap
 
-## Дальше
+- [x] Chrome extension wrapper (`manifest.json` + icons over the UI)
+- [x] Auto-lock on inactivity
+- [x] Password strength meter + generator options (length / symbols)
+- [x] Show / hide passwords
+- [x] File locker (encrypt any file)
+- [ ] Light / dark theme toggle
+- [ ] (opt.) publish to the Chrome Web Store (or Unlisted)
+- [ ] (opt.) native desktop via tauri
 
-- [x] Обёртка-расширение Chrome (`manifest.json` + иконки поверх готового UI)
-- [ ] Автоблокировка по таймауту неактивности
-- [ ] Индикатор надёжности пароля, настройки генератора (длина/символы)
-- [ ] Показ/скрытие пароля в записи, тёмная/светлая тема
-- [ ] (опц.) публикация в Chrome Web Store (или Unlisted)
-- [ ] (опц.) нативный десктоп через tauri
+## License
+
+[MIT](LICENSE) © 2026 gravitymir
