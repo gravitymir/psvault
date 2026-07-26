@@ -62,8 +62,8 @@
       <header class="topbar">
         <div class="topbar-row">
           <input type="search" id="search" placeholder="Search…" />
-          <button id="add-btn" class="primary small">+ Entry</button>
-          <button id="save-btn" class="small">💾 Save</button>
+          <button id="add-btn" class="primary small" title="Add entry">+</button>
+          <button id="save-btn" class="small" title="Save">💾</button>
         </div>
         <div class="topbar-row">
           <select id="autolock" class="small" title="Auto-lock when idle">
@@ -107,6 +107,17 @@
       <menu>
         <button value="cancel" class="ghost" formnovalidate>Cancel</button>
         <button value="save" id="dialog-save" class="primary">Save</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <!-- ===== Overwrite confirmation ===== -->
+  <dialog id="confirm-dialog">
+    <form method="dialog" id="confirm-form">
+      <p id="confirm-text"></p>
+      <menu>
+        <button value="cancel" class="ghost">Cancel</button>
+        <button value="yes" id="confirm-yes" class="primary" autofocus>Yes, overwrite</button>
       </menu>
     </form>
   </dialog>

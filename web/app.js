@@ -9,6 +9,7 @@ const state = {
   filename: "vault.locked",
   dirty: false,
   loadedBytes: null,  // Uint8Array of a picked file, awaiting unlock
+  fileHandle: null,   // File System Access handle of the opened vault (for save-in-place)
   editingId: null,    // id being edited, or null when adding
   snapshot: null,     // encrypted in-memory copy of unsaved work, kept across a lock
   snapshotName: null,
@@ -30,6 +31,15 @@ wireFileLocker();
 // Any interaction postpones auto-lock; the timer only arms while unlocked.
 AUTOLOCK_ACTIVITY.forEach((ev) => document.addEventListener(ev, resetAutoLock, { passive: true }));
 
+// Ctrl/Cmd+S saves the open vault (shows the overwrite modal), instead of the
+// browser's "save page" dialog.
+document.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s" && state.vault) {
+    e.preventDefault();
+    saveFile();
+  }
+});
+
 // ===========================================================================
 // Lock screen
 // ===========================================================================
@@ -37,10 +47,13 @@ function wireLockScreen() {
   $("tab-new").onclick = () => switchTab("new");
   // Clicking a file tab is a user gesture, so we open the OS picker right away.
   // Cancelling the picker just leaves the tab open — click it again to retry.
-  $("tab-open").onclick = () => { switchTab("open"); $("file-input").click(); };
+  $("tab-open").onclick = () => { switchTab("open"); openVaultPicker(); };
   $("tab-file").onclick = () => { switchTab("file"); $("file-input2").click(); };
 
-  $("file-input").onchange = () => $("file-input").files[0] && loadFile($("file-input").files[0]);
+  // Fallback path (browsers without the File System Access API): plain <input>.
+  $("file-input").onchange = () => {
+    if ($("file-input").files[0]) { state.fileHandle = null; loadFile($("file-input").files[0]); }
+  };
 
   $("open-password").addEventListener("keydown", (e) => { if (e.key === "Enter") $("open-btn").click(); });
   $("open-btn").onclick = doUnlock;
@@ -60,6 +73,22 @@ function switchTab(which) {
   lockError("");
 }
 
+// Open a vault. Prefer the File System Access API so Save can later write back
+// to the SAME file; fall back to a plain <input> where it isn't available.
+async function openVaultPicker() {
+  if (!window.showOpenFilePicker) { $("file-input").click(); return; }
+  try {
+    const [handle] = await window.showOpenFilePicker({
+      types: [{ description: "Vault", accept: { "application/octet-stream": [".locked", ".psv"] } }],
+      excludeAcceptAllOption: false,
+    });
+    state.fileHandle = handle;
+    await loadFile(await handle.getFile());
+  } catch {
+    /* user cancelled the picker */
+  }
+}
+
 async function loadFile(file) {
   state.loadedBytes = new Uint8Array(await file.arrayBuffer());
   state.filename = file.name;
@@ -67,6 +96,7 @@ async function loadFile(file) {
   $("file-label").classList.remove("hidden");
   $("open-btn").disabled = false;
   lockError("");
+  $("open-password").focus(); // ready to type the master password immediately
 }
 
 function doUnlock() {
@@ -99,6 +129,7 @@ function doCreate() {
   state.vault = JSON.parse(empty_vault_json());
   state.password = pw;
   state.filename = vaultFilename($("new-name").value);
+  state.fileHandle = null; // no file yet — first Save picks a location
   state.dirty = true; // nothing saved yet
   enterVault();
 }
@@ -234,6 +265,7 @@ function lockVault(reason) {
   state.vault = null;
   state.password = null;
   state.loadedBytes = null;
+  state.fileHandle = null;
   state.dirty = false;
   state.editingId = null;
   if ($("entry-dialog").open) $("entry-dialog").close();
@@ -320,15 +352,76 @@ function deleteEntry(id) {
 }
 
 async function saveFile() {
+  let bytes;
   try {
-    const bytes = lock(JSON.stringify(state.vault), state.password);
-    download(bytes, state.filename || "vault.locked");
-    state.dirty = false;
-    updateDirty();
-    toast("Saved");
+    bytes = lock(JSON.stringify(state.vault), state.password);
   } catch (e) {
-    toast("Save failed: " + e);
+    return toast("Save failed: " + e);
   }
+
+  // 1) We have a handle to the opened file -> overwrite it in place (after confirm).
+  if (state.fileHandle) {
+    if (!(await confirmOverwrite(state.filename))) return;
+    try {
+      if (!(await ensureWritePermission(state.fileHandle))) return toast("Write permission denied");
+      await writeToHandle(state.fileHandle, bytes);
+      state.dirty = false; updateDirty();
+      toast("Saved");
+    } catch (e) {
+      toast("Save failed: " + e);
+    }
+    return;
+  }
+
+  // 2) No handle (new vault, first save) -> pick a location once, then remember it.
+  if (window.showSaveFilePicker) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: state.filename || "vault.locked",
+        types: [{ description: "Vault", accept: { "application/octet-stream": [".locked"] } }],
+      });
+      await writeToHandle(handle, bytes);
+      state.fileHandle = handle;
+      state.filename = handle.name;
+      $("vault-name").textContent = "🔐 " + state.filename;
+      state.dirty = false; updateDirty();
+      toast("Saved");
+    } catch {
+      /* user cancelled the save dialog */
+    }
+    return;
+  }
+
+  // 3) Fallback (no File System Access API) -> plain download.
+  download(bytes, state.filename || "vault.locked");
+  state.dirty = false; updateDirty();
+  toast("Saved");
+}
+
+async function writeToHandle(handle, bytes) {
+  const w = await handle.createWritable();
+  await w.write(bytes);
+  await w.close();
+}
+
+// Ensure we may write to the handle, prompting once if needed.
+async function ensureWritePermission(handle) {
+  if (!handle.queryPermission) return true;
+  const opts = { mode: "readwrite" };
+  if ((await handle.queryPermission(opts)) === "granted") return true;
+  return (await handle.requestPermission(opts)) === "granted";
+}
+
+// Themed confirm modal for overwriting. Yes is focused so Enter confirms.
+function confirmOverwrite(name) {
+  return new Promise((resolve) => {
+    const dlg = $("confirm-dialog");
+    $("confirm-text").textContent = `Overwrite “${name}”?`;
+    dlg.returnValue = "";
+    dlg.showModal();
+    $("confirm-yes").focus();
+    dlg.addEventListener("close", () => resolve(dlg.returnValue === "yes"), { once: true });
+  });
 }
 
 function markDirty() { state.dirty = true; updateDirty(); }
