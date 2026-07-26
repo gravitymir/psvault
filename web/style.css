@@ -15,6 +15,9 @@
 
 * { box-sizing: border-box; }
 
+/* Unified icon set: outline, monochrome, inherits the text color */
+.icon { width: 1.15em; height: 1.15em; display: inline-block; vertical-align: -0.16em; flex: none; }
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -101,7 +104,8 @@ button.small { padding: 7px 11px; font-size: .9rem; }
 .topbar { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
 .topbar-row { display: flex; gap: 8px; align-items: center; }
 .topbar-row #search { flex: 1; }
-.topbar-row #autolock { flex: 1; width: auto; }
+.autolock-wrap { flex: 1; display: flex; align-items: center; gap: 8px; }
+.autolock-wrap #autolock { flex: 1; width: auto; }
 /* Lock button: white with black text, grey border */
 #lock-btn { background: #fff; color: #000; border-color: #9aa0aa; }
 #lock-btn:hover { background: #e2e5ea; }

@@ -21,6 +21,8 @@ const AUTOLOCK_ACTIVITY = ["mousemove", "keydown", "click", "input", "scroll"];
 let lockTimer = null;
 
 const $ = (id) => document.getElementById(id);
+// Reference an icon from the inline SVG sprite.
+const icon = (id) => `<svg class="icon" aria-hidden="true"><use href="#${id}"/></svg>`;
 
 // ---- Boot ------------------------------------------------------------------
 await init();
@@ -245,7 +247,7 @@ function enterVault() {
   $("new-password2").value = "";
   $("new-strength-bar").style.width = "0";
   $("new-strength-label").textContent = "";
-  $("vault-name").textContent = "🔐 " + state.filename;
+  setVaultName(state.filename);
   renderEntries();
   updateDirty();
   updateRestoreNote();
@@ -292,6 +294,13 @@ function updateRestoreNote() {
   $("restore-note").classList.toggle("hidden", !state.snapshot);
 }
 
+// Lock icon + the vault's filename (filename added as a text node, so it is safe).
+function setVaultName(name) {
+  const el = $("vault-name");
+  el.innerHTML = icon("i-lock");
+  el.append(" " + name);
+}
+
 function renderEntries() {
   const q = $("search").value.trim().toLowerCase();
   const list = $("entry-list");
@@ -313,10 +322,10 @@ function renderEntries() {
         <code class="pw hidden"></code>
       </div>
       <div class="actions">
-        <button class="small ghost" data-act="reveal" title="Show password">👁</button>
-        <button class="small" data-act="copy">Copy</button>
-        <button class="small" data-act="edit">✏️</button>
-        <button class="small ghost" data-act="del">🗑</button>
+        <button class="small ghost" data-act="reveal" title="Show password">${icon("i-eye")}</button>
+        <button class="small" data-act="copy" title="Copy password">${icon("i-copy")}</button>
+        <button class="small" data-act="edit" title="Edit">${icon("i-edit")}</button>
+        <button class="small ghost" data-act="del" title="Delete">${icon("i-trash")}</button>
       </div>`;
     li.querySelector(".title").textContent = e.title || "(untitled)";
     li.querySelector(".sub").textContent = [e.username, e.url].filter(Boolean).join(" · ");
@@ -325,7 +334,7 @@ function renderEntries() {
     revealBtn.onclick = () => {
       const nowHidden = pwEl.classList.toggle("hidden");
       pwEl.textContent = nowHidden ? "" : e.password;
-      revealBtn.textContent = nowHidden ? "👁" : "🙈";
+      revealBtn.querySelector("use").setAttribute("href", nowHidden ? "#i-eye" : "#i-eye-off");
     };
     li.querySelector('[data-act="copy"]').onclick = () => copyPassword(e);
     li.querySelector('[data-act="edit"]').onclick = () => openDialog(e.id);
@@ -383,7 +392,7 @@ async function saveFile() {
       await writeToHandle(handle, bytes);
       state.fileHandle = handle;
       state.filename = handle.name;
-      $("vault-name").textContent = "🔐 " + state.filename;
+      setVaultName(state.filename);
       state.dirty = false; updateDirty();
       toast("Saved");
     } catch {
@@ -454,7 +463,7 @@ function openDialog(id) {
   $("f-url").value = e?.url || "";
   $("f-notes").value = e?.notes || "";
   $("f-password").type = "password"; // always start hidden
-  $("reveal-btn").textContent = "👁";
+  $("reveal-btn").querySelector("use").setAttribute("href", "#i-eye");
   updateStrength();
   $("entry-dialog").showModal();
 }
@@ -462,7 +471,7 @@ function openDialog(id) {
 function toggleReveal(input, btn) {
   const reveal = input.type === "password";
   input.type = reveal ? "text" : "password";
-  btn.textContent = reveal ? "🙈" : "👁";
+  btn.querySelector("use").setAttribute("href", reveal ? "#i-eye-off" : "#i-eye");
 }
 
 // Rough entropy estimate: length × log2(character-pool size). Returns bits, a
