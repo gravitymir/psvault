@@ -51,6 +51,7 @@ function wireLockScreen() {
   $("open-password").addEventListener("keydown", (e) => { if (e.key === "Enter") $("open-btn").click(); });
   $("open-btn").onclick = doUnlock;
   $("new-btn").onclick = doCreate;
+  $("new-password").addEventListener("input", updateNewStrength);
 }
 
 function switchTab(which) {
@@ -95,7 +96,7 @@ function doUnlock() {
 
 function doCreate() {
   const pw = $("new-password").value, pw2 = $("new-password2").value;
-  if (pw.length < 4) return lockError("Password is too short.");
+  if (pw.length < 12) return lockError("Master password must be at least 12 characters (a passphrase is best).");
   if (pw !== pw2) return lockError("Passwords don't match.");
   state.vault = JSON.parse(empty_vault_json());
   state.password = pw;
@@ -359,9 +360,9 @@ function toggleReveal(input, btn) {
   btn.textContent = reveal ? "🙈" : "👁";
 }
 
-// Rough entropy estimate: length × log2(character-pool size).
-function updateStrength() {
-  const pw = $("f-password").value;
+// Rough entropy estimate: length × log2(character-pool size). Returns bits, a
+// label/color, and a 0–100 percentage (~100 bits fills the bar).
+function scorePassword(pw) {
   let pool = 0;
   if (/[a-z]/.test(pw)) pool += 26;
   if (/[A-Z]/.test(pw)) pool += 26;
@@ -374,14 +375,24 @@ function updateStrength() {
   else if (bits < 60) { label = "Fair"; color = "#ffb020"; }
   else if (bits < 80) { label = "Good"; color = "#43c47a"; }
   else if (bits >= 80) { label = "Strong"; color = "#2fe08a"; }
-
-  const bar = $("strength-bar");
-  bar.style.width = Math.min(100, Math.round(bits)) + "%"; // ~100 bits fills the bar
-  bar.style.background = color;
-  const lbl = $("strength-label");
-  lbl.textContent = label;
-  lbl.style.color = color;
+  return { bits, label, color, pct: Math.min(100, Math.round(bits)) };
 }
+
+// Paint a strength bar (and optional text label) for the given password string.
+function paintStrength(pw, barId, labelId) {
+  const { label, color, pct } = scorePassword(pw);
+  const bar = $(barId);
+  bar.style.width = pct + "%";
+  bar.style.background = color;
+  if (labelId) {
+    const lbl = $(labelId);
+    lbl.textContent = label;
+    lbl.style.color = color;
+  }
+}
+
+function updateStrength() { paintStrength($("f-password").value, "strength-bar", "strength-label"); }
+function updateNewStrength() { paintStrength($("new-password").value, "new-strength-bar", "new-strength-label"); }
 
 function applyDialog() {
   const now = Math.floor(Date.now() / 1000);

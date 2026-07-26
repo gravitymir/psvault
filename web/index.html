@@ -33,9 +33,12 @@
 
         <!-- Create new -->
         <div id="pane-new" class="pane hidden">
-          <input type="password" id="new-password" placeholder="New master password" autocomplete="off" />
+          <input type="password" id="new-password" placeholder="New master password (min 12)" autocomplete="off" />
+          <span class="strength"><span id="new-strength-bar"></span></span>
+          <span id="new-strength-label" class="strength-note"></span>
           <input type="password" id="new-password2" placeholder="Repeat password" autocomplete="off" />
           <button id="new-btn" class="primary">Create vault</button>
+          <p class="hint">This master password <b>cannot be recovered</b>. Best choice: a passphrase of 4+ random words, or 15+ characters. Minimum 12.</p>
         </div>
 
         <!-- Encrypt / decrypt any file (file locker) -->

@@ -162,3 +162,4 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
   transition: width .2s, background .2s;
 }
 #strength-label { font-weight: 600; }
+.strength-note { font-size: .8rem; font-weight: 600; min-height: 1em; }
