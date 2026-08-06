@@ -3,7 +3,8 @@
 //! JavaScript owns the entry list and the UI; Rust owns crypto only. The two
 //! talk in bytes (the encrypted file) and JSON (the decrypted vault).
 
-use vault_core::{decrypt, encrypt, open_bytes, seal_bytes, KdfParams, Vault};
+use vault_core::totp::{self, Algorithm};
+use vault_core::{decrypt, encrypt, open_bytes, seal_bytes, KdfParams, Totp, Vault};
 use wasm_bindgen::prelude::*;
 
 /// Better panic messages in the browser console during development.
@@ -81,6 +82,81 @@ pub fn generate_password(len: usize, symbols: bool) -> Result<String, JsValue> {
         }
     }
     Ok(out)
+}
+
+// ---------------------------------------------------------------------------
+// TOTP (2FA authenticator) — decode a setup QR, parse otpauth, generate codes.
+// ---------------------------------------------------------------------------
+
+/// Decode a QR code from raw RGBA pixels (as produced by a `<canvas>`
+/// `getImageData`). Returns the encoded text — for 2FA setup that is an
+/// `otpauth://...` URI. Throws if no QR is found.
+///
+/// `rgba` must be exactly `width * height * 4` bytes.
+#[wasm_bindgen]
+pub fn decode_qr(rgba: &[u8], width: u32, height: u32) -> Result<String, JsValue> {
+    let (w, h) = (width as usize, height as usize);
+    if rgba.len() != w * h * 4 {
+        return Err(JsValue::from_str(
+            "pixel buffer size does not match width×height",
+        ));
+    }
+    // Luma from RGBA (Rec. 601-ish integer weights), what rqrr wants.
+    let mut luma = vec![0u8; w * h];
+    for (i, px) in rgba.chunks_exact(4).enumerate() {
+        luma[i] = ((px[0] as u32 * 77 + px[1] as u32 * 150 + px[2] as u32 * 29) >> 8) as u8;
+    }
+    let mut img = rqrr::PreparedImage::prepare_from_greyscale(w, h, |x, y| luma[y * w + x]);
+    let grids = img.detect_grids();
+    for grid in grids {
+        if let Ok((_meta, content)) = grid.decode() {
+            return Ok(content);
+        }
+    }
+    Err(JsValue::from_str("no QR code found in the image"))
+}
+
+/// Parse an `otpauth://totp/...` URI into a JSON object the UI can drop straight
+/// into an entry: `{ secret, issuer, account, algorithm, digits, period }`.
+#[wasm_bindgen]
+pub fn parse_otpauth(uri: &str) -> Result<String, JsValue> {
+    let t = totp::parse_otpauth(uri).map_err(js_err)?;
+    serde_json::to_string(&t).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Current TOTP code for a stored secret at `unix_seconds` (seconds since the
+/// epoch — pass `Date.now()/1000`). Returns the zero-padded digit string.
+#[wasm_bindgen]
+pub fn totp_code(
+    secret: &str,
+    algorithm: &str,
+    digits: u8,
+    period: u32,
+    unix_seconds: f64,
+) -> Result<String, JsValue> {
+    let secs = if unix_seconds < 0.0 {
+        0
+    } else {
+        unix_seconds as u64
+    };
+    totp::totp_code(secret, secs, digits, period, Algorithm::parse(algorithm)).map_err(js_err)
+}
+
+/// Build an SVG QR code for a stored TOTP (the "export / move to another device"
+/// direction). `totp_json` is the same shape `parse_otpauth` returns.
+#[wasm_bindgen]
+pub fn totp_qr_svg(totp_json: &str) -> Result<String, JsValue> {
+    let t: Totp = serde_json::from_str(totp_json)
+        .map_err(|e| JsValue::from_str(&format!("invalid TOTP JSON: {e}")))?;
+    let uri = totp::build_otpauth(&t);
+    let code = qrcode::QrCode::new(uri.as_bytes())
+        .map_err(|e| JsValue::from_str(&format!("cannot build QR: {e}")))?;
+    let svg = code
+        .render::<qrcode::render::svg::Color>()
+        .min_dimensions(220, 220)
+        .quiet_zone(true)
+        .build();
+    Ok(svg)
 }
 
 fn serde_vault_to_json(v: &Vault) -> Result<String, JsValue> {

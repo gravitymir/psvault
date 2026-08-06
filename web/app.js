@@ -1,5 +1,6 @@
 import init, {
   unlock, lock, empty_vault_json, generate_password, lock_file, unlock_file,
+  decode_qr, parse_otpauth, totp_code, totp_qr_svg,
 } from "./pkg/vault_wasm.js";
 
 // ---- App state -------------------------------------------------------------
@@ -11,6 +12,8 @@ const state = {
   loadedBytes: null,  // Uint8Array of a picked file, awaiting unlock
   fileHandle: null,   // File System Access handle of the opened vault (for save-in-place)
   editingId: null,    // id being edited, or null when adding
+  editingTotp: null,  // the entry dialog's pending 2FA secret (a Totp object or null)
+  liveCodes: [],      // list-row TOTP displays refreshed once a second
   snapshot: null,     // encrypted in-memory copy of unsaved work, kept across a lock
   snapshotName: null,
   lockerBytes: null,  // bytes of a file selected in the "file locker" tab
@@ -30,6 +33,9 @@ wireLockScreen();
 wireVaultScreen();
 wireDialog();
 wireFileLocker();
+wireTotp();
+// One shared clock refreshes every visible 2FA code and its countdown.
+setInterval(tick, 1000);
 // Any interaction postpones auto-lock; the timer only arms while unlocked.
 AUTOLOCK_ACTIVITY.forEach((ev) => document.addEventListener(ev, resetAutoLock, { passive: true }));
 
@@ -312,14 +318,25 @@ function renderEntries() {
 
   $("empty-note").classList.toggle("hidden", state.vault.entries.length !== 0);
 
+  state.liveCodes = [];
   for (const e of items) {
     const li = document.createElement("li");
     li.className = "entry";
+    const totpRow = e.totp
+      ? `<div class="totp-line">
+           <svg class="icon dim"><use href="#i-shield"/></svg>
+           <code class="totp-code" data-role="code">••• •••</code>
+           <span class="totp-ring" data-role="ring">30</span>
+           <button class="small ghost" data-act="totp-copy" title="Copy 2FA code">${icon("i-copy")}</button>
+           <button class="small ghost" data-act="totp-qr" title="Show 2FA QR">${icon("i-qr")}</button>
+         </div>`
+      : "";
     li.innerHTML = `
       <div class="info">
         <div class="title"></div>
         <div class="sub"></div>
         <code class="pw hidden"></code>
+        ${totpRow}
       </div>
       <div class="actions">
         <button class="small ghost" data-act="reveal" title="Show password">${icon("i-eye")}</button>
@@ -339,8 +356,18 @@ function renderEntries() {
     li.querySelector('[data-act="copy"]').onclick = () => copyPassword(e);
     li.querySelector('[data-act="edit"]').onclick = () => openDialog(e.id);
     li.querySelector('[data-act="del"]').onclick = () => deleteEntry(e.id);
+    if (e.totp) {
+      li.querySelector('[data-act="totp-copy"]').onclick = () => copyTotp(e.totp);
+      li.querySelector('[data-act="totp-qr"]').onclick = () => showTotpQr(e.totp);
+      state.liveCodes.push({
+        codeEl: li.querySelector('[data-role="code"]'),
+        ringEl: li.querySelector('[data-role="ring"]'),
+        totp: e.totp,
+      });
+    }
     list.appendChild(li);
   }
+  tick(); // paint codes immediately, don't wait up to a second
 }
 
 async function copyPassword(entry) {
@@ -464,6 +491,8 @@ function openDialog(id) {
   $("f-notes").value = e?.notes || "";
   $("f-password").type = "password"; // always start hidden
   $("reveal-btn").querySelector("use").setAttribute("href", "#i-eye");
+  $("totp-text").value = "";
+  setDialogTotp(e?.totp || null); // deep-copy not needed: replaced wholesale on edit
   updateStrength();
   $("entry-dialog").showModal();
 }
@@ -516,6 +545,7 @@ function applyDialog() {
     password: $("f-password").value,
     url: $("f-url").value.trim(),
     notes: $("f-notes").value,
+    totp: state.editingTotp || null, // null serializes away (serde skips None)
   };
   if (state.editingId) {
     const e = state.vault.entries.find((x) => x.id === state.editingId);
@@ -532,6 +562,185 @@ function newId() {
   const b = crypto.getRandomValues(new Uint8Array(16));
   return [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
 }
+
+// ===========================================================================
+// Two-factor (TOTP): import a setup QR / key, show live codes, export a QR
+// ===========================================================================
+function wireTotp() {
+  $("totp-remove").onclick = () => setDialogTotp(null);
+  $("totp-paste-btn").onclick = pasteQrFromClipboard;
+  $("totp-file-btn").onclick = () => $("totp-file-input").click();
+  $("totp-file-input").onchange = () => {
+    const f = $("totp-file-input").files[0];
+    if (f) importTotpImage(f);
+    $("totp-file-input").value = ""; // allow re-picking the same file
+  };
+  $("totp-text").addEventListener("input", onTotpText);
+  // Ctrl+V of an image anywhere in the dialog imports the QR (the "crop from a
+  // page and paste" flow: Win+Shift+S puts a cropped screenshot on the clipboard).
+  $("entry-dialog").addEventListener("paste", onDialogPaste);
+}
+
+// Show either the "import" state or the live-preview state for the dialog.
+function setDialogTotp(totp) {
+  state.editingTotp = totp;
+  const has = !!totp;
+  $("totp-empty").classList.toggle("hidden", has);
+  $("totp-set").classList.toggle("hidden", !has);
+  $("totp-remove").classList.toggle("hidden", !has);
+  totpError("");
+  if (has) {
+    $("totp-dlg-label").textContent =
+      [totp.issuer, totp.account].filter(Boolean).join(" · ") || "TOTP";
+    $("totp-text").value = "";
+  }
+  tick(); // refresh the preview code now
+}
+
+function onDialogPaste(e) {
+  for (const it of e.clipboardData?.items || []) {
+    if (it.type.startsWith("image/")) {
+      e.preventDefault(); // don't also drop the image into a text field
+      importTotpImage(it.getAsFile());
+      return;
+    }
+  }
+  // No image on the clipboard — let a normal text paste happen.
+}
+
+// The "Paste QR image" button: pull an image off the clipboard explicitly
+// (needs the async Clipboard API; Ctrl+V via onDialogPaste is the fallback).
+async function pasteQrFromClipboard() {
+  totpError("");
+  try {
+    if (!navigator.clipboard?.read)
+      throw new Error("Clipboard images aren't available here — use Ctrl+V or “Image file…”.");
+    for (const it of await navigator.clipboard.read()) {
+      const type = it.types.find((t) => t.startsWith("image/"));
+      if (type) return void importTotpImage(await it.getType(type));
+    }
+    throw new Error("No image on the clipboard. Screenshot the QR (Win+Shift+S) first.");
+  } catch (err) {
+    totpError(errText(err));
+  }
+}
+
+async function importTotpImage(blob) {
+  totpError("");
+  try {
+    const totp = await totpFromImage(blob);
+    fillTotpMeta(totp);
+    setDialogTotp(totp);
+    toast("2FA added from QR");
+  } catch (err) {
+    totpError(errText(err));
+  }
+}
+
+// Draw the image to a canvas, hand the raw pixels to the Rust QR decoder, then
+// interpret the decoded text as a 2FA payload.
+async function totpFromImage(blob) {
+  const bitmap = await createImageBitmap(blob);
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(bitmap, 0, 0);
+  bitmap.close?.();
+  const { data, width, height } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const text = decode_qr(new Uint8Array(data.buffer), width, height); // throws if no QR
+  return totpFromText(text);
+}
+
+// Turn decoded text (an otpauth:// URI, or a bare Base32 key) into a Totp object.
+function totpFromText(text) {
+  const s = String(text).trim();
+  if (s.toLowerCase().startsWith("otpauth://")) {
+    return JSON.parse(parse_otpauth(s)); // throws with a reason on a bad URI
+  }
+  // Otherwise treat it as a raw setup key; validate it by generating a code.
+  const secret = s.replace(/\s+/g, "");
+  totp_code(secret, "SHA1", 6, 30, Date.now() / 1000); // throws if not Base32
+  return { secret, issuer: "", account: "", algorithm: "SHA1", digits: 6, period: 30 };
+}
+
+function onTotpText() {
+  const s = $("totp-text").value.trim();
+  if (!s) return totpError("");
+  try {
+    const totp = totpFromText(s);
+    fillTotpMeta(totp);
+    setDialogTotp(totp);
+  } catch (err) {
+    // A malformed otpauth link is worth flagging; a half-typed key is not.
+    totpError(s.toLowerCase().startsWith("otpauth://") ? errText(err) : "");
+  }
+}
+
+// Fill in blank issuer/account from the entry being edited, so an export QR and
+// the list label read nicely even when only a bare key was pasted.
+function fillTotpMeta(totp) {
+  if (!totp.issuer) totp.issuer = $("f-title").value.trim();
+  if (!totp.account) totp.account = $("f-username").value.trim();
+}
+
+// Refresh every visible code + countdown. Cheap no-op when nothing shows a code.
+function tick() {
+  const now = Date.now() / 1000;
+  for (const item of state.liveCodes) paintTotp(item, now);
+  if ($("entry-dialog").open && state.editingTotp) {
+    paintTotp(
+      { codeEl: $("totp-dlg-code"), ringEl: $("totp-dlg-ring"), totp: state.editingTotp },
+      now
+    );
+  }
+}
+
+function paintTotp({ codeEl, ringEl, totp: t }, now) {
+  try {
+    const code = totp_code(t.secret, t.algorithm || "SHA1", t.digits || 6, t.period || 30, now);
+    codeEl.textContent = groupCode(code);
+    codeEl.dataset.code = code;
+  } catch {
+    codeEl.textContent = "invalid key";
+    codeEl.dataset.code = "";
+  }
+  const period = t.period || 30;
+  const remaining = period - (Math.floor(now) % period);
+  ringEl.textContent = remaining;
+  ringEl.classList.toggle("soon", remaining <= 5);
+}
+
+// "123456" -> "123 456", "12345678" -> "1234 5678".
+function groupCode(code) {
+  const half = Math.ceil(code.length / 2);
+  return code.slice(0, half) + " " + code.slice(half);
+}
+
+async function copyTotp(totp) {
+  try {
+    const code = totp_code(totp.secret, totp.algorithm, totp.digits, totp.period, Date.now() / 1000);
+    await navigator.clipboard.writeText(code);
+    toast("2FA code copied");
+  } catch {
+    toast("Copy failed");
+  }
+}
+
+// Show the account's own setup QR so it can be added to a phone / another app.
+function showTotpQr(totp) {
+  try {
+    $("qr-dialog-svg").innerHTML = totp_qr_svg(JSON.stringify(totp)); // SVG is generated by us
+    $("qr-dialog-label").textContent =
+      [totp.issuer, totp.account].filter(Boolean).join(" · ") || "TOTP";
+    $("qr-dialog").showModal();
+  } catch (e) {
+    toast("QR failed: " + e);
+  }
+}
+
+function totpError(msg) { $("totp-error").textContent = msg; }
+function errText(err) { return String(err?.message || err); }
 
 // ---- Toast -----------------------------------------------------------------
 let toastTimer = null;

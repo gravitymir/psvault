@@ -17,6 +17,10 @@ console_error_panic_hook = { version = "0.1", optional = true }
 # The "js" feature routes getrandom to the browser's crypto.getRandomValues.
 # It is additive, so enabling it here turns it on for vault-core too.
 getrandom = { version = "0.2", features = ["js"] }
+# QR code decode (2FA import) and encode (2FA export). default-features off on
+# both keeps out the heavy `image` crate — we feed/receive raw pixels and SVG.
+rqrr = { version = "0.10", default-features = false }
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 
 [features]
 default = ["console"]

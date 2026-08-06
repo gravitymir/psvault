@@ -20,6 +20,8 @@
     <symbol id="i-unlock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></symbol>
     <symbol id="i-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></symbol>
     <symbol id="i-generate" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol>
+    <symbol id="i-qr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><line x1="14" y1="14" x2="14" y2="17"/><line x1="17" y1="14" x2="21" y2="14"/><line x1="21" y1="14" x2="21" y2="21"/><line x1="14" y1="21" x2="17" y2="21"/><line x1="17" y1="17" x2="17" y2="21"/></symbol>
   </svg>
 
   <main id="app">
@@ -122,9 +124,52 @@
       </label>
       <label>URL<input id="f-url" /></label>
       <label>Notes<textarea id="f-notes" rows="3"></textarea></label>
+
+      <!-- ===== Two-factor (TOTP) ===== -->
+      <div class="totp-block">
+        <div class="totp-head">
+          <span><svg class="icon"><use href="#i-shield"/></svg> Two-factor code (TOTP)</span>
+          <button type="button" id="totp-remove" class="small ghost hidden" title="Remove 2FA">Remove</button>
+        </div>
+
+        <!-- No secret yet: import from a QR image or a setup key -->
+        <div id="totp-empty">
+          <div class="totp-import">
+            <button type="button" id="totp-paste-btn" class="small"><svg class="icon"><use href="#i-qr"/></svg> Paste QR image</button>
+            <button type="button" id="totp-file-btn" class="small ghost">Image file…</button>
+            <input type="file" id="totp-file-input" accept="image/*" hidden />
+          </div>
+          <input id="totp-text" placeholder="…or paste an otpauth:// link or the setup key" autocomplete="off" />
+          <p class="hint">Screenshot the site's 2FA QR (<b>Win+Shift+S</b>), then <b>Paste QR image</b> — or Ctrl+V anywhere in this dialog. No secret leaves this device.</p>
+          <p id="totp-error" class="error"></p>
+        </div>
+
+        <!-- Secret set: show a live preview -->
+        <div id="totp-set" class="hidden">
+          <div class="totp-live">
+            <code id="totp-dlg-code" class="totp-code big">••• •••</code>
+            <span id="totp-dlg-ring" class="totp-ring" title="seconds until it changes">30</span>
+          </div>
+          <span id="totp-dlg-label" class="muted"></span>
+        </div>
+      </div>
+
       <menu>
         <button value="cancel" class="ghost" formnovalidate>Cancel</button>
         <button value="save" id="dialog-save" class="primary">Save</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <!-- ===== 2FA QR export ===== -->
+  <dialog id="qr-dialog">
+    <form method="dialog">
+      <h2>Two-factor QR</h2>
+      <p class="muted" id="qr-dialog-label"></p>
+      <div id="qr-dialog-svg" class="qr-holder"></div>
+      <p class="hint">Scan this in another authenticator app or phone to add the same account. <b>Anyone who scans it gets your 2FA secret</b> — don't share it.</p>
+      <menu>
+        <button value="close" class="primary" autofocus>Close</button>
       </menu>
     </form>
   </dialog>

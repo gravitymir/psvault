@@ -23,6 +23,9 @@ pub enum VaultError {
 
     #[error("vault content is not valid JSON: {0}")]
     Json(#[from] serde_json::Error),
+
+    #[error("invalid one-time-password data: {0}")]
+    Totp(String),
 }
 
 pub type Result<T> = std::result::Result<T, VaultError>;

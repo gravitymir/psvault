@@ -24,8 +24,8 @@ vault-core (Rust)
 
 | Path | What it is |
 |---|---|
-| `crates/vault-core` | file format + encryption, covered by tests |
-| `crates/vault-wasm` | thin WASM bindings (unlock / lock / file locker / password generator) |
+| `crates/vault-core` | file format + encryption + TOTP (`totp` module), covered by tests |
+| `crates/vault-wasm` | thin WASM bindings (unlock / lock / file locker / generator / QR + TOTP) |
 | `web/` | UI: `index.html`, `style.css`, `app.js` |
 | `web/pkg/` | built WASM (generated, do not edit) |
 | `extension/` | Chrome extension: `manifest.json`, `background.js`, `icons/` + synced UI |
@@ -72,6 +72,8 @@ After editing code: run `./build-ext.ps1` again, then click ↻ on the extension
 - **Auto-lock** on inactivity (1 / 5 / 15 min / off); unsaved edits are kept as an
   encrypted in-memory snapshot and restored with the master password
 - **File locker**: encrypt/decrypt *any* file under the master password
+- **Two-factor codes (TOTP)**: import a site's 2FA setup QR (or key) and generate
+  the rotating 6-digit codes yourself — no phone authenticator app needed
 
 ## Requirements
 
@@ -106,6 +108,34 @@ Vaults use `.locked`, locked files use `.filelocked` — same on-disk format, th
 extension just tells them apart. Everything stays local. Core: `seal_bytes` /
 `open_bytes`; WASM: `lock_file` / `unlock_file`.
 
+## Two-factor codes (TOTP)
+
+Replace a phone authenticator app: attach a service's 2FA secret to its entry and
+the vault generates the same rotating codes (RFC 6238). The secret is stored
+encrypted inside the vault like everything else.
+
+**Import** — open an entry (Add/Edit) and, under *Two-factor code*:
+
+- Screenshot the site's setup QR (Windows: **Win+Shift+S** for a cropped region),
+  then **Paste QR image** — or just **Ctrl+V** anywhere in the dialog. The QR is
+  decoded locally and its `otpauth://` secret is stored.
+- Or paste the `otpauth://…` link / the Base32 setup key the site shows instead.
+
+The list then shows a live 6-digit code with a countdown; the copy button puts the
+current code on the clipboard.
+
+**Export** — the QR button on a 2FA entry shows its own `otpauth://` QR, so the
+same account can be added to a phone or another authenticator. (Whoever scans it
+gets the secret — treat it like the password.)
+
+Nothing is transmitted: QR decode/encode and code generation all run in the local
+WASM. Core: `vault_core::totp` (Base32, HOTP/TOTP, `otpauth://` parse/build);
+WASM: `decode_qr` / `parse_otpauth` / `totp_code` / `totp_qr_svg`.
+
+> The **Paste QR image** button uses the async clipboard API (may prompt / be
+> unavailable in the zero-permission extension); **Ctrl+V** and **Image file…**
+> always work.
+
 ## Roadmap
 
 - [x] Chrome extension wrapper (`manifest.json` + icons over the UI)
@@ -113,6 +143,7 @@ extension just tells them apart. Everything stays local. Core: `seal_bytes` /
 - [x] Password strength meter + generator options (length / symbols)
 - [x] Show / hide passwords
 - [x] File locker (encrypt any file)
+- [x] TOTP 2FA authenticator (import setup QR / key, generate codes)
 - [ ] Light / dark theme toggle
 - [ ] (opt.) publish to the Chrome Web Store (or Unlisted)
 - [ ] (opt.) native desktop via tauri

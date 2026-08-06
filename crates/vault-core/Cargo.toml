@@ -14,5 +14,9 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 zeroize = { version = "1", features = ["derive"] }
 thiserror = "1"
+# TOTP (RFC 6238) so the vault can replace a phone authenticator app.
+hmac = "0.12"
+sha1 = "0.10"
+sha2 = "0.10"
 
 [dev-dependencies]

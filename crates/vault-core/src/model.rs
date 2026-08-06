@@ -19,11 +19,61 @@ pub struct Entry {
     pub url: String,
     #[zeroize(skip)]
     pub notes: String,
+    /// Optional two-factor (TOTP) secret attached to this login. `None` for the
+    /// vast majority of entries; present once a 2FA QR/secret is imported.
+    ///
+    /// Skipped by this struct's `Zeroize` (it is an `Option`, not a `String`);
+    /// the inner [`Totp`] wipes its own secret via its own `ZeroizeOnDrop`.
+    #[zeroize(skip)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub totp: Option<Totp>,
     /// Unix seconds; 0 if unknown.
     #[zeroize(skip)]
     pub created: u64,
     #[zeroize(skip)]
     pub updated: u64,
+}
+
+/// A stored TOTP (RFC 6238) configuration — everything needed to regenerate the
+/// rotating 6-digit codes an authenticator app would show, so a phone isn't
+/// required. Imported from an `otpauth://` QR code or typed in by hand.
+///
+/// `secret` is the sensitive part (the shared key, Base32) and is wiped on drop.
+/// The rest are non-secret display/tuning metadata.
+#[derive(Debug, Clone, Serialize, Deserialize, ZeroizeOnDrop)]
+pub struct Totp {
+    /// Shared secret, Base32 (RFC 4648) as issued by the service.
+    pub secret: String,
+    /// Service name (e.g. "GitHub"); from the otpauth `issuer`. May be empty.
+    #[zeroize(skip)]
+    #[serde(default)]
+    pub issuer: String,
+    /// Account label (e.g. "you@example.com"); from the otpauth label. May be empty.
+    #[zeroize(skip)]
+    #[serde(default)]
+    pub account: String,
+    /// "SHA1" (default), "SHA256", or "SHA512".
+    #[zeroize(skip)]
+    #[serde(default = "default_algorithm")]
+    pub algorithm: String,
+    /// Code length, usually 6.
+    #[zeroize(skip)]
+    #[serde(default = "default_digits")]
+    pub digits: u8,
+    /// Rotation period in seconds, usually 30.
+    #[zeroize(skip)]
+    #[serde(default = "default_period")]
+    pub period: u32,
+}
+
+fn default_algorithm() -> String {
+    "SHA1".to_string()
+}
+fn default_digits() -> u8 {
+    6
+}
+fn default_period() -> u32 {
+    30
 }
 
 /// The full decrypted contents of a vault.

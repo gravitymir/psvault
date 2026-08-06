@@ -190,3 +190,55 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
 }
 #strength-label { font-weight: 600; }
 .strength-note { font-size: .8rem; font-weight: 600; min-height: 1em; }
+
+/* ---------- Two-factor (TOTP) ---------- */
+/* Dialog section */
+.totp-block {
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;
+  background: var(--surface-2);
+}
+.totp-head { display: flex; align-items: center; justify-content: space-between; font-size: .85rem; color: var(--muted); }
+.totp-head > span { display: inline-flex; align-items: center; gap: 6px; }
+#totp-empty { display: flex; flex-direction: column; gap: 10px; }
+.totp-import { display: flex; gap: 8px; }
+.totp-import #totp-paste-btn { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+#totp-error:empty { margin: 0; }
+
+/* Live preview inside the dialog */
+.totp-live { display: flex; align-items: center; gap: 14px; }
+.totp-code {
+  font-family: ui-monospace, monospace; font-weight: 700; letter-spacing: .06em;
+  color: var(--ok); font-variant-numeric: tabular-nums;
+}
+.totp-code.big { font-size: 1.5rem; }
+#totp-set { display: flex; flex-direction: column; gap: 4px; }
+#totp-dlg-label { text-align: left; }
+
+/* Countdown pill */
+.totp-ring {
+  min-width: 2.1em; text-align: center; padding: 2px 8px; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--border);
+  font-size: .8rem; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.totp-ring.soon { color: var(--danger); border-color: var(--danger); }
+
+/* Code line inside a list entry */
+.entry .totp-line {
+  display: flex; align-items: center; gap: 8px; margin-top: 6px;
+}
+.entry .totp-line .totp-code { font-size: .95rem; }
+.entry .totp-line .icon.dim { color: var(--muted); }
+.entry .totp-line button { margin-left: 0; }
+.entry .totp-line .totp-ring { margin-left: auto; }
+
+/* QR export dialog */
+#qr-dialog { width: min(420px, 92vw); text-align: center; }
+#qr-dialog h2 { margin: 0 0 6px; }
+#qr-dialog #qr-dialog-label { margin: 0 0 12px; }
+#qr-dialog menu { display: flex; justify-content: center; margin: 14px 0 0; padding: 0; }
+.qr-holder {
+  background: #fff; border-radius: 8px; padding: 12px; display: inline-block;
+  line-height: 0; max-width: 100%;
+}
+.qr-holder svg { width: 240px; max-width: 100%; height: auto; }

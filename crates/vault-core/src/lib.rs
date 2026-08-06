@@ -14,9 +14,10 @@
 
 mod error;
 mod model;
+pub mod totp;
 
 pub use error::{Result, VaultError};
-pub use model::{Entry, Vault};
+pub use model::{Entry, Totp, Vault};
 
 use argon2::{Algorithm, Argon2, Params, Version};
 use chacha20poly1305::{
@@ -222,6 +223,7 @@ mod tests {
             password: "s3cr3t-p@ss".into(),
             url: "https://github.com".into(),
             notes: "personal".into(),
+            totp: None,
             created: 1_700_000_000,
             updated: 1_700_000_000,
         });
