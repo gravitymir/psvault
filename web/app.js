@@ -26,6 +26,10 @@ let lockTimer = null;
 const $ = (id) => document.getElementById(id);
 // Reference an icon from the inline SVG sprite.
 const icon = (id) => `<svg class="icon" aria-hidden="true"><use href="#${id}"/></svg>`;
+// Minimum master-password length required to encrypt (a new password).
+const MIN_MASTER_PW = 12;
+// Build a <code> element with safe text content.
+const codeEl = (text) => { const c = document.createElement("code"); c.textContent = text; return c; };
 
 // ---- Boot ------------------------------------------------------------------
 await init();
@@ -34,6 +38,7 @@ wireVaultScreen();
 wireDialog();
 wireFileLocker();
 wireTotp();
+updateNewStrength(); // show the "minimum N characters" prompt from the start
 // One shared clock refreshes every visible 2FA code and its countdown.
 setInterval(tick, 1000);
 // Any interaction postpones auto-lock; the timer only arms while unlocked.
@@ -52,9 +57,10 @@ document.addEventListener("keydown", (e) => {
 // Lock screen
 // ===========================================================================
 function wireLockScreen() {
+  // Clicking the "Open vault" tab opens the OS file picker straight away (the
+  // click is a user gesture); cancel and click the tab again to retry. The
+  // other tabs just switch panes.
   $("tab-new").onclick = () => switchTab("new");
-  // Clicking a file tab is a user gesture, so we open the OS picker right away.
-  // Cancelling the picker just leaves the tab open — click it again to retry.
   $("tab-open").onclick = () => { switchTab("open"); openVaultPicker(); };
   $("tab-file").onclick = () => { switchTab("file"); $("file-input2").click(); };
 
@@ -63,6 +69,8 @@ function wireLockScreen() {
     if ($("file-input").files[0]) { state.fileHandle = null; loadFile($("file-input").files[0]); }
   };
 
+  // The Unlock button only appears once a password has been typed.
+  $("open-password").addEventListener("input", renderOpenPane);
   $("open-password").addEventListener("keydown", (e) => { if (e.key === "Enter") $("open-btn").click(); });
   $("open-btn").onclick = doUnlock;
   $("new-btn").onclick = doCreate;
@@ -71,6 +79,8 @@ function wireLockScreen() {
   for (const id of ["new-name", "new-password", "new-password2"]) {
     $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") $("new-btn").click(); });
   }
+  renderOpenPane();
+  renderFilePane();
 }
 
 function switchTab(which) {
@@ -79,6 +89,20 @@ function switchTab(which) {
     $("pane-" + t).classList.toggle("hidden", which !== t);
   }
   lockError("");
+  renderOpenPane();
+  renderFilePane();
+}
+
+// Open-vault pane is staged: choose a file → the password field appears → the
+// Unlock button appears once something is typed. (An in-memory snapshot after
+// auto-lock also counts as "unlockable", with just the password.)
+function renderOpenPane() {
+  const hasFile = !!state.loadedBytes;
+  const canUnlock = hasFile || !!state.snapshot;
+  $("file-label").classList.toggle("hidden", !hasFile);
+  $("open-password").classList.toggle("hidden", !canUnlock);
+  const hasPw = $("open-password").value.length > 0;
+  $("open-btn").classList.toggle("hidden", !(canUnlock && hasPw));
 }
 
 // Open a vault. Prefer the File System Access API so Save can later write back
@@ -87,7 +111,10 @@ async function openVaultPicker() {
   if (!window.showOpenFilePicker) { $("file-input").click(); return; }
   try {
     const [handle] = await window.showOpenFilePicker({
-      types: [{ description: "Vault", accept: { "application/octet-stream": [".locked", ".psv"] } }],
+      // Custom MIME (unknown to the OS) so the filter shows only *.locked and
+      // Windows doesn't expand a generic type into *.com/*.exe/*.bin. Old .psv
+      // files can still be opened via the "All files" option.
+      types: [{ description: "Vault", accept: { "application/x-psvault": [".locked"] } }],
       excludeAcceptAllOption: false,
     });
     state.fileHandle = handle;
@@ -100,11 +127,27 @@ async function openVaultPicker() {
 async function loadFile(file) {
   state.loadedBytes = new Uint8Array(await file.arrayBuffer());
   state.filename = file.name;
-  $("file-label").textContent = file.name;
-  $("file-label").classList.remove("hidden");
-  $("open-btn").disabled = false;
+  const label = $("file-label");
+  label.textContent = file.name; // filename as a text node (safe)
+  const mod = fileModifiedText(file.lastModified);
+  if (mod) {
+    const meta = document.createElement("span");
+    meta.className = "file-meta";
+    meta.textContent = "Modified " + mod;
+    label.appendChild(meta);
+  }
+  renderOpenPane(); // reveals the filename + password field, hides the prompt
   lockError("");
   $("open-password").focus(); // ready to type the master password immediately
+}
+
+// Human-readable last-modified time of a picked file ("" if unknown).
+function fileModifiedText(ms) {
+  if (!ms) return "";
+  return new Date(ms).toLocaleString(undefined, {
+    year: "numeric", month: "short", day: "numeric",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  });
 }
 
 function doUnlock() {
@@ -159,7 +202,7 @@ function lockError(msg) { $("lock-error").textContent = msg; }
 // ===========================================================================
 function wireFileLocker() {
   $("file-input2").onchange = () => $("file-input2").files[0] && loadLockerFile($("file-input2").files[0]);
-  $("file-password").addEventListener("input", updateLockerButtons);
+  $("file-password").addEventListener("input", renderFilePane);
   // Enter triggers whichever action is currently shown (Encrypt or Decrypt).
   $("file-password").addEventListener("keydown", (e) => {
     if (e.key !== "Enter") return;
@@ -174,29 +217,56 @@ function wireFileLocker() {
 async function loadLockerFile(file) {
   state.lockerBytes = new Uint8Array(await file.arrayBuffer());
   state.lockerName = file.name;
-  $("file-label2").textContent = `${file.name} (${file.size} bytes)`;
-  $("file-label2").classList.remove("hidden");
-  updateLockerButtons();
+  const label = $("file-label2");
+  label.textContent = file.name; // filename as a text node (safe)
+  const meta = document.createElement("span");
+  meta.className = "file-meta";
+  const parts = [`${file.size} bytes`];
+  const mod = fileModifiedText(file.lastModified);
+  if (mod) parts.push("Modified " + mod);
+  meta.textContent = parts.join(" · ");
+  label.appendChild(meta);
+  renderFilePane(); // reveals the filename + password, hides the prompt
   lockError("");
   $("file-password").focus(); // ready to type the password immediately
 }
 
-// The file's extension decides the operation: an already-encrypted file
-// (".filelocked", or legacy ".locked"/".psv") -> decrypt, anything else ->
-// encrypt. Only the matching button shows, once a file and password are set.
-function updateLockerButtons() {
-  const enc = $("encrypt-file-btn"), dec = $("decrypt-file-btn");
-  if (!state.lockerBytes) {
+// File-locker pane is staged like the open pane: choose a file → the password
+// field appears → the matching action button appears once a password is typed.
+// The extension decides which action shows: an already-encrypted file
+// (".filelocked", or legacy ".locked"/".psv") -> Decrypt, anything else -> Encrypt.
+function renderFilePane() {
+  const enc = $("encrypt-file-btn"), dec = $("decrypt-file-btn"), desc = $("file-desc");
+  const hasFile = !!state.lockerBytes;
+  $("file-label2").classList.toggle("hidden", !hasFile);
+  $("file-password").classList.toggle("hidden", !hasFile);
+  if (!hasFile) {
     enc.classList.add("hidden");
     dec.classList.add("hidden");
+    desc.classList.add("hidden");
     return;
   }
+
   const isLocked = /\.(filelocked|locked|psv)$/i.test(state.lockerName);
-  const hasPw = $("file-password").value.length > 0;
-  enc.classList.toggle("hidden", isLocked);
-  dec.classList.toggle("hidden", !isLocked);
-  enc.disabled = !hasPw;
-  dec.disabled = !hasPw;
+  const pwLen = $("file-password").value.length;
+  // Encrypt needs a strong NEW password (min length); decrypt just needs the
+  // existing one typed. The matching button only appears once that's satisfied.
+  enc.classList.toggle("hidden", isLocked || pwLen < MIN_MASTER_PW);
+  dec.classList.toggle("hidden", !isLocked || pwLen < 1);
+
+  // Contextual description of what will happen with the chosen file.
+  desc.classList.remove("hidden");
+  desc.textContent = "";
+  if (isLocked) {
+    const orig = state.lockerName.replace(/\.(filelocked|locked|psv)$/i, "") || "the original";
+    desc.append("This file is encrypted. Enter the password to decrypt it back to ");
+    desc.append(codeEl(orig));
+    desc.append(".");
+  } else {
+    desc.append("This file will be encrypted → you'll download ");
+    desc.append(codeEl(state.lockerName + ".filelocked"));
+    desc.append(`. Choose a master password (min ${MIN_MASTER_PW}).`);
+  }
 }
 
 function encryptFile() {
@@ -251,8 +321,7 @@ function enterVault() {
   $("new-name").value = "";
   $("new-password").value = "";
   $("new-password2").value = "";
-  $("new-strength-bar").style.width = "0";
-  $("new-strength-label").textContent = "";
+  updateNewStrength(); // resets the meter to the "minimum N characters" prompt
   setVaultName(state.filename);
   renderEntries();
   updateDirty();
@@ -279,11 +348,10 @@ function lockVault(reason) {
   if ($("entry-dialog").open) $("entry-dialog").close();
   $("file-label").textContent = "";
   $("file-label").classList.add("hidden");
-  $("open-btn").disabled = !state.snapshot; // snapshot can be unlocked with just a password
   $("open-password").value = "";
   $("vault-screen").classList.add("hidden");
   $("lock-screen").classList.remove("hidden");
-  switchTab("open");
+  switchTab("open"); // re-renders the open pane (prompt vs. password vs. restore)
   updateRestoreNote();
   if (reason === "auto") toast("Locked due to inactivity");
 }
@@ -535,7 +603,37 @@ function paintStrength(pw, barId, labelId) {
 }
 
 function updateStrength() { paintStrength($("f-password").value, "strength-bar", "strength-label"); }
-function updateNewStrength() { paintStrength($("new-password").value, "new-strength-bar", "new-strength-label"); }
+// Staged feedback for the new master password:
+//   0 chars      -> "Minimum 12 characters"
+//   1..11 chars  -> "N characters left" (counting up to the minimum, no strength)
+//   exactly 12   -> the strength word only
+//   13+ chars    -> "N characters · <strength>"
+function updateNewStrength() {
+  const pw = $("new-password").value;
+  const len = pw.length;
+  const bar = $("new-strength-bar");
+  const lbl = $("new-strength-label");
+
+  if (len < MIN_MASTER_PW) {
+    bar.style.width = "0";
+    bar.style.background = "transparent";
+    lbl.style.color = "var(--muted)";
+    if (len === 0) {
+      lbl.textContent = `Minimum ${MIN_MASTER_PW} characters`;
+    } else {
+      const left = MIN_MASTER_PW - len;
+      lbl.textContent = `${left} character${left === 1 ? "" : "s"} left`;
+    }
+    return;
+  }
+
+  // At/above the minimum: show strength; add the count once past 12.
+  const { label, color, pct } = scorePassword(pw);
+  bar.style.width = pct + "%";
+  bar.style.background = color;
+  lbl.style.color = color;
+  lbl.textContent = len > MIN_MASTER_PW ? `${len} characters · ${label}` : label;
+}
 
 function applyDialog() {
   const now = Math.floor(Date.now() / 1000);

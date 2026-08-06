@@ -38,35 +38,39 @@
           <button id="tab-file" class="tab"><svg class="icon"><use href="#i-lock"/></svg> File</button>
         </div>
 
-        <!-- Open existing: clicking the tab opens the OS file picker; no drop zone -->
+        <!-- Open existing: clicking the "Open vault" tab opens the file picker;
+             once a file is chosen the filename + password field + Unlock appear. -->
         <div id="pane-open" class="pane">
           <input type="file" id="file-input" hidden />
           <p id="file-label" class="file-chosen hidden"></p>
-          <input type="password" id="open-password" placeholder="Master password" autocomplete="off" />
-          <button id="open-btn" class="primary" disabled>Unlock</button>
+          <input type="password" id="open-password" class="hidden" placeholder="Master password" autocomplete="off" />
+          <button id="open-btn" class="primary hidden">Unlock</button>
         </div>
 
         <!-- Create new -->
         <div id="pane-new" class="pane hidden">
           <input type="text" id="new-name" placeholder="Vault name (e.g. work, personal)" autocomplete="off" />
-          <input type="password" id="new-password" placeholder="New master password (min 12)" autocomplete="off" />
-          <span class="strength"><span id="new-strength-bar"></span></span>
-          <span id="new-strength-label" class="strength-note"></span>
+          <div id="new-strength-wrap" class="strength-wrap">
+            <span id="new-strength-label" class="strength-note"></span>
+            <span class="strength"><span id="new-strength-bar"></span></span>
+          </div>
+          <input type="password" id="new-password" placeholder="New master password" autocomplete="off" />
           <input type="password" id="new-password2" placeholder="Repeat password" autocomplete="off" />
           <button id="new-btn" class="primary">Create vault</button>
           <p class="hint">This master password <b>cannot be recovered</b>. Best choice: a passphrase of 4+ random words, or 15+ characters. Minimum 12.</p>
         </div>
 
-        <!-- Encrypt / decrypt any file (file locker); clicking the tab opens the picker -->
+        <!-- Encrypt / decrypt any file (file locker); clicking the "File" tab
+             opens the picker. Extension decides the action (.filelocked -> decrypt). -->
         <div id="pane-file" class="pane hidden">
           <input type="file" id="file-input2" hidden />
           <p id="file-label2" class="file-chosen hidden"></p>
-          <input type="password" id="file-password" placeholder="Master password" autocomplete="off" />
+          <input type="password" id="file-password" class="hidden" placeholder="Master password" autocomplete="off" />
           <div class="file-actions">
-            <button id="encrypt-file-btn" class="primary hidden" disabled><svg class="icon"><use href="#i-lock"/></svg> Encrypt</button>
-            <button id="decrypt-file-btn" class="hidden" disabled><svg class="icon"><use href="#i-unlock"/></svg> Decrypt</button>
+            <button id="encrypt-file-btn" class="primary hidden"><svg class="icon"><use href="#i-lock"/></svg> Encrypt</button>
+            <button id="decrypt-file-btn" class="hidden"><svg class="icon"><use href="#i-unlock"/></svg> Decrypt</button>
           </div>
-          <p class="hint">Encrypt: pick a file → download <code>name.filelocked</code>. Decrypt: pick a <code>.filelocked</code> file → get the original back. Everything stays local.</p>
+          <p id="file-desc" class="hint hidden"></p>
         </div>
 
         <p id="lock-error" class="error"></p>

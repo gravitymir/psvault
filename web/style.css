@@ -75,6 +75,11 @@ body {
 
 /* Selected-file line for the Open file tab (which has no drop zone) */
 .file-chosen { margin: 10px 0; text-align: center; color: var(--ok); font-weight: 600; word-break: break-all; }
+.file-meta { display: block; margin-top: 3px; font-size: .8rem; font-weight: 400; color: var(--muted); }
+.strength-wrap { display: flex; flex-direction: column; gap: 8px; }
+
+/* Prompt shown before a file is chosen (in place of the password field) */
+.choose-note { margin: 2px 0 0; text-align: center; color: var(--muted); font-size: .9rem; }
 
 /* ---------- Inputs & buttons ---------- */
 input, textarea, select {
@@ -189,7 +194,7 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
   transition: width .2s, background .2s;
 }
 #strength-label { font-weight: 600; }
-.strength-note { font-size: .8rem; font-weight: 600; min-height: 1em; }
+.strength-note { font-size: .8rem; font-weight: 600; min-height: 1em; text-align: center; }
 
 /* ---------- Two-factor (TOTP) ---------- */
 /* Dialog section */
