@@ -74,9 +74,24 @@ body {
 .file-drop.loaded { border-style: solid; border-color: var(--ok); color: var(--text); }
 
 /* Selected-file line for the Open file tab (which has no drop zone) */
-.file-chosen { margin: 10px 0; text-align: center; color: var(--ok); font-weight: 600; word-break: break-all; }
-.file-meta { display: block; margin-top: 3px; font-size: .8rem; font-weight: 400; color: var(--muted); }
+.file-chosen { margin: 10px 0; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; color: var(--ok); font-weight: 600; }
+.file-chosen .fname { word-break: break-all; min-width: 0; }
+.file-chosen .ext { color: var(--muted); }
+.file-meta { flex-shrink: 0; white-space: nowrap; font-size: .8rem; font-weight: 400; color: var(--muted); }
 .strength-wrap { display: flex; flex-direction: column; gap: 8px; }
+
+/* Vault-name field with a grey ".locked" preview drawn after the typed text.
+   A transparent mirror of the typed text occupies the same width; the real
+   input text (white) shows through, and the grey suffix follows it. */
+.name-field { position: relative; }
+.name-ghost {
+  position: absolute; inset: 0;
+  padding: 10px 12px; border: 1px solid transparent; border-radius: 8px;
+  font: inherit; white-space: pre; overflow: hidden;
+  pointer-events: none; color: transparent;
+  display: flex; align-items: center;
+}
+.name-ghost .suffix { color: var(--muted); }
 
 /* Prompt shown before a file is chosen (in place of the password field) */
 .choose-note { margin: 2px 0 0; text-align: center; color: var(--muted); font-size: .9rem; }

@@ -49,12 +49,18 @@
 
         <!-- Create new -->
         <div id="pane-new" class="pane hidden">
-          <input type="text" id="new-name" placeholder="Vault name (e.g. work, personal)" autocomplete="off" />
+          <div class="name-field">
+            <input type="text" id="new-name" placeholder="Vault name (e.g. work, personal)" autocomplete="off" />
+            <span id="new-name-ghost" class="name-ghost" aria-hidden="true"></span>
+          </div>
           <div id="new-strength-wrap" class="strength-wrap">
             <span id="new-strength-label" class="strength-note"></span>
             <span class="strength"><span id="new-strength-bar"></span></span>
           </div>
-          <input type="password" id="new-password" placeholder="New master password" autocomplete="off" />
+          <span class="pw-row">
+            <input type="password" id="new-password" placeholder="New master password" autocomplete="off" />
+            <button type="button" id="new-reveal-btn" class="small ghost" title="Hold to show"><svg class="icon"><use href="#i-eye"/></svg></button>
+          </span>
           <input type="password" id="new-password2" placeholder="Repeat password" autocomplete="off" />
           <button id="new-btn" class="primary">Create vault</button>
           <p class="hint">This master password <b>cannot be recovered</b>. Best choice: a passphrase of 4+ random words, or 15+ characters. Minimum 12.</p>

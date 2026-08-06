@@ -75,6 +75,8 @@ function wireLockScreen() {
   $("open-btn").onclick = doUnlock;
   $("new-btn").onclick = doCreate;
   $("new-password").addEventListener("input", updateNewStrength);
+  $("new-name").addEventListener("input", updateNameGhost);
+  holdToReveal($("new-reveal-btn"), $("new-password"));
   // Enter on any of the Create-vault fields submits.
   for (const id of ["new-name", "new-password", "new-password2"]) {
     $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") $("new-btn").click(); });
@@ -128,12 +130,13 @@ async function loadFile(file) {
   state.loadedBytes = new Uint8Array(await file.arrayBuffer());
   state.filename = file.name;
   const label = $("file-label");
-  label.textContent = file.name; // filename as a text node (safe)
+  label.textContent = "";
+  label.append(fileNameEl(file.name)); // base (green) + extension (grey)
   const mod = fileModifiedText(file.lastModified);
   if (mod) {
     const meta = document.createElement("span");
     meta.className = "file-meta";
-    meta.textContent = "Modified " + mod;
+    meta.textContent = mod;
     label.appendChild(meta);
   }
   renderOpenPane(); // reveals the filename + password field, hides the prompt
@@ -141,13 +144,29 @@ async function loadFile(file) {
   $("open-password").focus(); // ready to type the master password immediately
 }
 
+// A filename split into a green base + a grey extension (e.g. "personal" + ".locked").
+function fileNameEl(name) {
+  const wrap = document.createElement("span");
+  wrap.className = "fname";
+  const dot = name.lastIndexOf(".");
+  if (dot > 0) {
+    wrap.append(document.createTextNode(name.slice(0, dot)));
+    const ext = document.createElement("span");
+    ext.className = "ext";
+    ext.textContent = name.slice(dot);
+    wrap.append(ext);
+  } else {
+    wrap.textContent = name;
+  }
+  return wrap;
+}
+
 // Human-readable last-modified time of a picked file ("" if unknown).
 function fileModifiedText(ms) {
   if (!ms) return "";
-  return new Date(ms).toLocaleString(undefined, {
-    year: "numeric", month: "short", day: "numeric",
-    hour: "2-digit", minute: "2-digit", hour12: false,
-  });
+  const d = new Date(ms);
+  const p = (n) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 function doUnlock() {
@@ -185,6 +204,19 @@ function doCreate() {
   enterVault();
 }
 
+// Preview the ".locked" extension in grey right after the typed vault name.
+function updateNameGhost() {
+  const ghost = $("new-name-ghost");
+  ghost.textContent = "";
+  const val = $("new-name").value;
+  if (!val) return;
+  ghost.append(document.createTextNode(val)); // transparent mirror (spacer)
+  const suf = document.createElement("span");
+  suf.className = "suffix";
+  suf.textContent = ".locked";
+  ghost.append(suf);
+}
+
 // Turn a user-typed vault name into a safe ".locked" filename ("work" -> "work.locked").
 function vaultFilename(name) {
   const base = name.trim()
@@ -218,12 +250,13 @@ async function loadLockerFile(file) {
   state.lockerBytes = new Uint8Array(await file.arrayBuffer());
   state.lockerName = file.name;
   const label = $("file-label2");
-  label.textContent = file.name; // filename as a text node (safe)
+  label.textContent = "";
+  label.append(fileNameEl(file.name)); // base (green) + extension (grey)
   const meta = document.createElement("span");
   meta.className = "file-meta";
   const parts = [`${file.size} bytes`];
   const mod = fileModifiedText(file.lastModified);
-  if (mod) parts.push("Modified " + mod);
+  if (mod) parts.push(mod);
   meta.textContent = parts.join(" · ");
   label.appendChild(meta);
   renderFilePane(); // reveals the filename + password, hides the prompt
@@ -319,8 +352,11 @@ function enterVault() {
   $("vault-screen").classList.remove("hidden");
   $("open-password").value = "";
   $("new-name").value = "";
+  updateNameGhost(); // clear the ".locked" preview
   $("new-password").value = "";
   $("new-password2").value = "";
+  $("new-password").type = "password"; // back to hidden
+  $("new-reveal-btn").querySelector("use").setAttribute("href", "#i-eye");
   updateNewStrength(); // resets the meter to the "minimum N characters" prompt
   setVaultName(state.filename);
   renderEntries();
@@ -569,6 +605,31 @@ function toggleReveal(input, btn) {
   const reveal = input.type === "password";
   input.type = reveal ? "text" : "password";
   btn.querySelector("use").setAttribute("href", reveal ? "#i-eye-off" : "#i-eye");
+}
+
+// Press-and-hold to peek: the password shows only while the button is held down
+// (pointerdown), and re-hides on release / leaving the button.
+function holdToReveal(btn, input) {
+  const use = btn.querySelector("use");
+  // Switching input.type resets the caret to the start, so preserve it.
+  const setType = (type) => {
+    const { selectionStart: s, selectionEnd: e } = input;
+    input.type = type;
+    if (s !== null) {
+      try { input.setSelectionRange(s, e); } catch { /* not selectable */ }
+    }
+  };
+  const show = (e) => {
+    e.preventDefault(); // keep focus in the input, suppress long-press menu
+    setType("text");
+    use.setAttribute("href", "#i-eye-off");
+  };
+  const hide = () => {
+    setType("password");
+    use.setAttribute("href", "#i-eye");
+  };
+  btn.addEventListener("pointerdown", show);
+  ["pointerup", "pointerleave", "pointercancel"].forEach((ev) => btn.addEventListener(ev, hide));
 }
 
 // Rough entropy estimate: length × log2(character-pool size). Returns bits, a
