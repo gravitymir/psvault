@@ -124,6 +124,14 @@ pub fn parse_otpauth(uri: &str) -> Result<String, JsValue> {
     serde_json::to_string(&t).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
+/// Parse a Google Authenticator export QR payload (`otpauth-migration://...`)
+/// into a JSON array of TOTP objects — one per account in the migration.
+#[wasm_bindgen]
+pub fn parse_migration(uri: &str) -> Result<String, JsValue> {
+    let list = totp::parse_migration(uri).map_err(js_err)?;
+    serde_json::to_string(&list).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
 /// Current TOTP code for a stored secret at `unix_seconds` (seconds since the
 /// epoch — pass `Date.now()/1000`). Returns the zero-padded digit string.
 #[wasm_bindgen]

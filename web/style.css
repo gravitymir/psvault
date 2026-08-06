@@ -176,6 +176,12 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
   font-weight: 600; opacity: 0; transition: opacity .2s; pointer-events: none;
 }
 .toast.show { opacity: 1; }
+/* Error toast: dark with a red border + red ✕, so it never reads as success. */
+.toast.error {
+  background: var(--surface-2); color: var(--text);
+  border: 2px solid var(--danger); max-width: min(520px, 92vw);
+}
+.toast.error::before { content: "✕"; color: var(--danger); font-weight: 800; margin-right: 8px; }
 
 /* ---------- Restore banner (unsaved state after auto-lock) ---------- */
 .restore {

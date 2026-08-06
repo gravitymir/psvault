@@ -1,6 +1,6 @@
 import init, {
   unlock, lock, empty_vault_json, generate_password, lock_file, unlock_file,
-  decode_qr, parse_otpauth, totp_code, totp_qr_svg,
+  decode_qr, parse_otpauth, parse_migration, totp_code, totp_qr_svg,
 } from "./pkg/vault_wasm.js";
 
 // ---- App state -------------------------------------------------------------
@@ -341,6 +341,12 @@ function download(bytes, filename) {
 // ===========================================================================
 function wireVaultScreen() {
   $("add-btn").onclick = () => openDialog(null);
+  $("import-2fa-btn").onclick = () => $("migration-input").click();
+  $("migration-input").onchange = () => {
+    const f = $("migration-input").files[0];
+    if (f) importMigration(f);
+    $("migration-input").value = ""; // allow re-picking the same file
+  };
   $("save-btn").onclick = saveFile;
   $("lock-btn").onclick = () => lockVault("manual");
   $("search").oninput = renderEntries;
@@ -479,7 +485,7 @@ async function copyPassword(entry) {
     await navigator.clipboard.writeText(entry.password);
     toast("Password copied");
   } catch {
-    toast("Copy failed");
+    toast("Copy failed", true);
   }
 }
 
@@ -496,46 +502,52 @@ async function saveFile() {
   try {
     bytes = lock(JSON.stringify(state.vault), state.password);
   } catch (e) {
-    return toast("Save failed: " + e);
+    return toast("Save failed: " + e, true);
   }
 
-  // 1) We have a handle to the opened file -> overwrite it in place (after confirm).
+  // 1) We have a handle to the opened file -> ask: overwrite it, save a NEW file
+  //    (fork, keeps the original untouched), or cancel.
   if (state.fileHandle) {
-    if (!(await confirmOverwrite(state.filename))) return;
+    const choice = await confirmSave(state.filename); // "yes" | "new" | "cancel"
+    if (choice === "cancel") return;
+    if (choice === "new") return void saveAsNew(bytes);
     try {
-      if (!(await ensureWritePermission(state.fileHandle))) return toast("Write permission denied");
+      if (!(await ensureWritePermission(state.fileHandle))) return toast("Write permission denied", true);
       await writeToHandle(state.fileHandle, bytes);
       state.dirty = false; updateDirty();
       toast("Saved");
     } catch (e) {
-      toast("Save failed: " + e);
+      toast("Save failed: " + e, true);
     }
     return;
   }
 
-  // 2) No handle (new vault, first save) -> pick a location once, then remember it.
-  if (window.showSaveFilePicker) {
-    try {
-      const handle = await window.showSaveFilePicker({
-        suggestedName: state.filename || "vault.locked",
-        types: [{ description: "Vault", accept: { "application/octet-stream": [".locked"] } }],
-      });
-      await writeToHandle(handle, bytes);
-      state.fileHandle = handle;
-      state.filename = handle.name;
-      setVaultName(state.filename);
-      state.dirty = false; updateDirty();
-      toast("Saved");
-    } catch {
-      /* user cancelled the save dialog */
-    }
-    return;
-  }
+  // 2) No handle yet (new vault, first save) -> pick a location.
+  await saveAsNew(bytes);
+}
 
-  // 3) Fallback (no File System Access API) -> plain download.
-  download(bytes, state.filename || "vault.locked");
-  state.dirty = false; updateDirty();
-  toast("Saved");
+// "Save As": pick a new file (never touches the currently-open one) and adopt it.
+async function saveAsNew(bytes) {
+  if (!window.showSaveFilePicker) {
+    // Fallback (no File System Access API): plain download.
+    download(bytes, state.filename || "vault.locked");
+    state.dirty = false; updateDirty();
+    return void toast("Saved");
+  }
+  try {
+    const handle = await window.showSaveFilePicker({
+      suggestedName: state.filename || "vault.locked",
+      types: [{ description: "Vault", accept: { "application/x-psvault": [".locked"] } }],
+    });
+    await writeToHandle(handle, bytes);
+    state.fileHandle = handle;
+    state.filename = handle.name;
+    setVaultName(state.filename);
+    state.dirty = false; updateDirty();
+    toast("Saved");
+  } catch {
+    /* user cancelled the save dialog */
+  }
 }
 
 async function writeToHandle(handle, bytes) {
@@ -552,15 +564,16 @@ async function ensureWritePermission(handle) {
   return (await handle.requestPermission(opts)) === "granted";
 }
 
-// Themed confirm modal for overwriting. Yes is focused so Enter confirms.
-function confirmOverwrite(name) {
+// Themed save modal: overwrite / save-as-new / cancel. "Yes, overwrite" is
+// focused so Enter overwrites. Resolves "yes" | "new" | "cancel".
+function confirmSave(name) {
   return new Promise((resolve) => {
     const dlg = $("confirm-dialog");
-    $("confirm-text").textContent = `Overwrite “${name}”?`;
+    $("confirm-text").textContent = `Save “${name}”?`;
     dlg.returnValue = "";
     dlg.showModal();
     $("confirm-yes").focus();
-    dlg.addEventListener("close", () => resolve(dlg.returnValue === "yes"), { once: true });
+    dlg.addEventListener("close", () => resolve(dlg.returnValue || "cancel"), { once: true });
   });
 }
 
@@ -796,9 +809,13 @@ async function importTotpImage(blob) {
   }
 }
 
-// Draw the image to a canvas, hand the raw pixels to the Rust QR decoder, then
-// interpret the decoded text as a 2FA payload.
+// Interpret a QR image as a single 2FA payload.
 async function totpFromImage(blob) {
+  return totpFromText(await qrTextFromImage(blob));
+}
+
+// Draw an image blob to a canvas and hand the raw pixels to the Rust QR decoder.
+async function qrTextFromImage(blob) {
   const bitmap = await createImageBitmap(blob);
   const canvas = document.createElement("canvas");
   canvas.width = bitmap.width;
@@ -807,8 +824,42 @@ async function totpFromImage(blob) {
   ctx.drawImage(bitmap, 0, 0);
   bitmap.close?.();
   const { data, width, height } = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const text = decode_qr(new Uint8Array(data.buffer), width, height); // throws if no QR
-  return totpFromText(text);
+  return decode_qr(new Uint8Array(data.buffer), width, height); // throws if no QR
+}
+
+// Bulk import: a Google Authenticator "Export accounts" QR image -> many entries,
+// one per account, each carrying its TOTP secret.
+async function importMigration(blob) {
+  try {
+    const text = String(await qrTextFromImage(blob)).trim();
+    if (!text.toLowerCase().startsWith("otpauth-migration://")) {
+      throw new Error("Not a Google Authenticator export QR. In the app: Transfer accounts → Export accounts.");
+    }
+    const list = JSON.parse(parse_migration(text)); // [{ secret, issuer, account, ... }]
+    const now = Math.floor(Date.now() / 1000);
+    for (const totp of list) {
+      state.vault.entries.push({
+        id: newId(),
+        title: totp.issuer || totp.account || "2FA",
+        username: totp.account || "",
+        password: "",
+        url: "",
+        notes: "",
+        totp,
+        created: now,
+        updated: now,
+      });
+    }
+    markDirty();
+    renderEntries();
+    toast(`Imported ${list.length} 2FA code${list.length === 1 ? "" : "s"}`);
+  } catch (err) {
+    const msg = errText(err);
+    const friendly = /no qr/i.test(msg)
+      ? "No QR code found. Crop the screenshot to just the export QR and use a sharp, full-size image."
+      : msg;
+    toast(friendly, true);
+  }
 }
 
 // Turn decoded text (an otpauth:// URI, or a bare Base32 key) into a Totp object.
@@ -882,7 +933,7 @@ async function copyTotp(totp) {
     await navigator.clipboard.writeText(code);
     toast("2FA code copied");
   } catch {
-    toast("Copy failed");
+    toast("Copy failed", true);
   }
 }
 
@@ -894,7 +945,7 @@ function showTotpQr(totp) {
       [totp.issuer, totp.account].filter(Boolean).join(" · ") || "TOTP";
     $("qr-dialog").showModal();
   } catch (e) {
-    toast("QR failed: " + e);
+    toast("QR failed: " + e, true);
   }
 }
 
@@ -903,11 +954,14 @@ function errText(err) { return String(err?.message || err); }
 
 // ---- Toast -----------------------------------------------------------------
 let toastTimer = null;
-function toast(msg) {
+// Success toast (green, ~1.6s) or, with error=true, a clear error (dark with a
+// red border and ✕, held ~5s so it can actually be read).
+function toast(msg, error = false) {
   let t = document.querySelector(".toast");
-  if (!t) { t = document.createElement("div"); t.className = "toast"; document.body.appendChild(t); }
+  if (!t) { t = document.createElement("div"); document.body.appendChild(t); }
+  t.className = "toast" + (error ? " error" : "");
   t.textContent = msg;
   t.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove("show"), 1600);
+  toastTimer = setTimeout(() => t.classList.remove("show"), error ? 5000 : 1600);
 }

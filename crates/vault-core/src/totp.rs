@@ -303,6 +303,200 @@ fn percent_encode(s: &str) -> String {
     out
 }
 
+// ===========================================================================
+// Google Authenticator bulk export ("otpauth-migration://") — many accounts in
+// one QR. The payload is base64 protobuf; secrets are raw bytes (not Base32).
+// ===========================================================================
+
+/// Decode standard Base64 (RFC 4648, `+//`), ignoring `=` padding and whitespace.
+fn base64_decode(input: &str) -> Result<Vec<u8>> {
+    fn val(c: u8) -> Option<u8> {
+        match c {
+            b'A'..=b'Z' => Some(c - b'A'),
+            b'a'..=b'z' => Some(c - b'a' + 26),
+            b'0'..=b'9' => Some(c - b'0' + 52),
+            b'+' => Some(62),
+            b'/' => Some(63),
+            _ => None,
+        }
+    }
+    let mut acc: u32 = 0;
+    let mut bits: u32 = 0;
+    let mut out = Vec::with_capacity(input.len() * 3 / 4 + 1);
+    for &c in input.as_bytes() {
+        if matches!(c, b'=' | b'\n' | b'\r' | b' ' | b'\t') {
+            continue;
+        }
+        let v = val(c).ok_or_else(|| totp_err("invalid Base64 in migration data"))? as u32;
+        acc = (acc << 6) | v;
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((acc >> bits) as u8);
+        }
+    }
+    Ok(out)
+}
+
+/// A cursor over a protobuf message: just enough of the wire format to read the
+/// GoogleAuthenticator MigrationPayload (varints and length-delimited fields).
+struct PbReader<'a> {
+    buf: &'a [u8],
+    pos: usize,
+}
+
+impl<'a> PbReader<'a> {
+    fn new(buf: &'a [u8]) -> Self {
+        Self { buf, pos: 0 }
+    }
+    fn eof(&self) -> bool {
+        self.pos >= self.buf.len()
+    }
+    fn read_varint(&mut self) -> Result<u64> {
+        let mut result: u64 = 0;
+        let mut shift = 0;
+        loop {
+            let byte = *self
+                .buf
+                .get(self.pos)
+                .ok_or_else(|| totp_err("truncated protobuf varint"))?;
+            self.pos += 1;
+            result |= ((byte & 0x7f) as u64) << shift;
+            if byte & 0x80 == 0 {
+                return Ok(result);
+            }
+            shift += 7;
+            if shift >= 64 {
+                return Err(totp_err("protobuf varint too long"));
+            }
+        }
+    }
+    fn read_bytes(&mut self) -> Result<&'a [u8]> {
+        let len = self.read_varint()? as usize;
+        let buf = self.buf;
+        let start = self.pos;
+        let end = start
+            .checked_add(len)
+            .filter(|&e| e <= buf.len())
+            .ok_or_else(|| totp_err("truncated protobuf field"))?;
+        self.pos = end;
+        Ok(&buf[start..end])
+    }
+    /// Skip a field of the given wire type (0 varint, 2 length-delimited; 1/5 fixed).
+    fn skip(&mut self, wire: u64) -> Result<()> {
+        match wire {
+            0 => {
+                self.read_varint()?;
+            }
+            2 => {
+                self.read_bytes()?;
+            }
+            1 => self.pos = self.pos.saturating_add(8),
+            5 => self.pos = self.pos.saturating_add(4),
+            _ => return Err(totp_err("unknown protobuf wire type")),
+        }
+        if self.pos > self.buf.len() {
+            return Err(totp_err("truncated protobuf field"));
+        }
+        Ok(())
+    }
+}
+
+/// Split a Google label into (issuer, account). GA stores the account in `name`
+/// (sometimes prefixed "Issuer:") and the issuer in its own field.
+fn split_label(issuer_field: &str, name_field: &str) -> (String, String) {
+    let issuer = issuer_field.trim();
+    let name = name_field.trim();
+    if !issuer.is_empty() {
+        let account = name.strip_prefix(&format!("{issuer}:")).unwrap_or(name).trim();
+        (issuer.to_string(), account.to_string())
+    } else if let Some((i, a)) = name.split_once(':') {
+        (i.trim().to_string(), a.trim().to_string())
+    } else {
+        (String::new(), name.to_string())
+    }
+}
+
+/// Parse one `OtpParameters` sub-message. Returns `None` for non-TOTP entries
+/// (HOTP or unspecified), which we skip.
+fn parse_otp_parameters(buf: &[u8]) -> Result<Option<Totp>> {
+    let mut r = PbReader::new(buf);
+    let mut secret_raw: Vec<u8> = Vec::new();
+    let mut name = String::new();
+    let mut issuer = String::new();
+    let mut algorithm = Algorithm::Sha1;
+    let mut digits: u8 = 6;
+    let mut otp_type: u64 = 2; // OTP_TYPE_TOTP by default
+    while !r.eof() {
+        let tag = r.read_varint()?;
+        let (field, wire) = (tag >> 3, tag & 0x7);
+        match (field, wire) {
+            (1, 2) => secret_raw = r.read_bytes()?.to_vec(),
+            (2, 2) => name = String::from_utf8_lossy(r.read_bytes()?).into_owned(),
+            (3, 2) => issuer = String::from_utf8_lossy(r.read_bytes()?).into_owned(),
+            (4, 0) => {
+                algorithm = match r.read_varint()? {
+                    2 => Algorithm::Sha256,
+                    3 => Algorithm::Sha512,
+                    _ => Algorithm::Sha1,
+                }
+            }
+            (5, 0) => digits = if r.read_varint()? == 2 { 8 } else { 6 },
+            (6, 0) => otp_type = r.read_varint()?,
+            _ => r.skip(wire)?,
+        }
+    }
+    if otp_type != 2 || secret_raw.is_empty() {
+        return Ok(None);
+    }
+    let (issuer, account) = split_label(&issuer, &name);
+    Ok(Some(Totp {
+        secret: base32_encode(&secret_raw),
+        issuer,
+        account,
+        algorithm: algorithm.name().to_string(),
+        digits: digits.clamp(1, 9),
+        period: 30, // the migration format carries no period; GA always uses 30
+    }))
+}
+
+/// Parse a Google Authenticator export QR payload (`otpauth-migration://offline?
+/// data=...`) into every TOTP account it contains.
+pub fn parse_migration(uri: &str) -> Result<Vec<Totp>> {
+    let rest = uri
+        .trim()
+        .strip_prefix("otpauth-migration://")
+        .ok_or_else(|| totp_err("not an otpauth-migration:// URI"))?;
+    let query = rest.split_once('?').map(|(_, q)| q).unwrap_or(rest);
+    let data = query
+        .split('&')
+        .filter_map(|pair| pair.split_once('='))
+        .find(|(k, _)| *k == "data")
+        .map(|(_, v)| percent_decode(v))
+        .ok_or_else(|| totp_err("migration URI has no data parameter"))?;
+
+    let bytes = base64_decode(&data)?;
+    // Top level: MigrationPayload with repeated OtpParameters at field 1.
+    let mut r = PbReader::new(&bytes);
+    let mut out = Vec::new();
+    while !r.eof() {
+        let tag = r.read_varint()?;
+        let (field, wire) = (tag >> 3, tag & 0x7);
+        if field == 1 && wire == 2 {
+            let msg = r.read_bytes()?;
+            if let Some(t) = parse_otp_parameters(msg)? {
+                out.push(t);
+            }
+        } else {
+            r.skip(wire)?;
+        }
+    }
+    if out.is_empty() {
+        return Err(totp_err("no TOTP accounts found in the migration QR"));
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -417,5 +611,33 @@ mod tests {
         assert_eq!(back.algorithm, orig.algorithm);
         assert_eq!(back.digits, orig.digits);
         assert_eq!(back.period, orig.period);
+    }
+
+    #[test]
+    fn base64_decodes_known() {
+        assert_eq!(base64_decode("SGVsbG8h").unwrap(), b"Hello!");
+        assert_eq!(base64_decode("").unwrap(), b"");
+    }
+
+    #[test]
+    fn parse_ga_migration_single_account() {
+        // Widely-used GA export example: one TOTP whose raw secret is
+        // "Hello!\xde\xad\xbe\xef" -> Base32 "JBSWY3DPEHPK3PXP".
+        let uri = "otpauth-migration://offline?data=CjEKCkhlbGxvId6tvu8SGEV4YW1wbGU6YWxpY2VAZ29vZ2xlLmNvbRoHRXhhbXBsZSABKAEwAhABGAEgAA%3D%3D";
+        let list = parse_migration(uri).unwrap();
+        assert_eq!(list.len(), 1);
+        let t = &list[0];
+        assert_eq!(t.secret, "JBSWY3DPEHPK3PXP");
+        assert_eq!(t.issuer, "Example");
+        assert_eq!(t.account, "alice@google.com");
+        assert_eq!(t.algorithm, "SHA1");
+        assert_eq!(t.digits, 6);
+        assert_eq!(t.period, 30);
+    }
+
+    #[test]
+    fn parse_migration_rejects_non_migration() {
+        assert!(parse_migration("otpauth://totp/x?secret=JBSWY3DPEHPK3PXP").is_err());
+        assert!(parse_migration("otpauth-migration://offline?foo=bar").is_err());
     }
 }
