@@ -341,6 +341,7 @@ function download(bytes, filename) {
 // ===========================================================================
 function wireVaultScreen() {
   $("add-btn").onclick = () => openDialog(null);
+  $("add-entry-bottom").onclick = () => openDialog(null);
   $("import-2fa-btn").onclick = () => $("migration-input").click();
   $("migration-input").onchange = () => {
     const f = $("migration-input").files[0];
@@ -437,9 +438,16 @@ function renderEntries() {
            <svg class="icon dim"><use href="#i-shield"/></svg>
            <code class="totp-code" data-role="code">••• •••</code>
            <span class="totp-ring" data-role="ring">30</span>
-           <button class="small ghost" data-act="totp-copy" title="Copy 2FA code">${icon("i-copy")}</button>
-           <button class="small ghost" data-act="totp-qr" title="Show 2FA QR">${icon("i-qr")}</button>
+           <button class="small" data-act="totp-copy" title="Copy 2FA code">${icon("i-copy")}</button>
+           <button class="small" data-act="totp-qr" title="Show 2FA QR">${icon("i-qr")}</button>
          </div>`
+      : "";
+    // Password actions (reveal + copy) only when there IS a password — a
+    // 2FA-only entry has neither to reveal nor to copy.
+    const hasPw = !!(e.password && e.password.length);
+    const pwButtons = hasPw
+      ? `<button class="small" data-act="reveal" title="Show password">${icon("i-eye")}</button>
+         <button class="small" data-act="copy" title="Copy password">${icon("i-copy")}</button>`
       : "";
     li.innerHTML = `
       <div class="info">
@@ -449,21 +457,23 @@ function renderEntries() {
         ${totpRow}
       </div>
       <div class="actions">
-        <button class="small ghost" data-act="reveal" title="Show password">${icon("i-eye")}</button>
-        <button class="small" data-act="copy" title="Copy password">${icon("i-copy")}</button>
+        ${pwButtons}
         <button class="small" data-act="edit" title="Edit">${icon("i-edit")}</button>
-        <button class="small ghost" data-act="del" title="Delete">${icon("i-trash")}</button>
+        <button class="small" data-act="del" title="Delete">${icon("i-trash")}</button>
       </div>`;
     li.querySelector(".title").textContent = e.title || "(untitled)";
     li.querySelector(".sub").textContent = [e.username, e.url].filter(Boolean).join(" · ");
     const pwEl = li.querySelector(".pw");
-    const revealBtn = li.querySelector('[data-act="reveal"]');
-    revealBtn.onclick = () => {
-      const nowHidden = pwEl.classList.toggle("hidden");
-      pwEl.textContent = nowHidden ? "" : e.password;
-      revealBtn.querySelector("use").setAttribute("href", nowHidden ? "#i-eye" : "#i-eye-off");
-    };
-    li.querySelector('[data-act="copy"]').onclick = () => copyPassword(e);
+    const reveal = li.querySelector('[data-act="reveal"]');
+    if (reveal) {
+      reveal.onclick = () => {
+        const nowHidden = pwEl.classList.toggle("hidden");
+        pwEl.textContent = nowHidden ? "" : e.password;
+        reveal.querySelector("use").setAttribute("href", nowHidden ? "#i-eye" : "#i-eye-off");
+      };
+    }
+    const copyBtn = li.querySelector('[data-act="copy"]');
+    if (copyBtn) copyBtn.onclick = () => copyPassword(e);
     li.querySelector('[data-act="edit"]').onclick = () => openDialog(e.id);
     li.querySelector('[data-act="del"]').onclick = () => deleteEntry(e.id);
     if (e.totp) {
@@ -578,7 +588,10 @@ function confirmSave(name) {
 }
 
 function markDirty() { state.dirty = true; updateDirty(); }
-function updateDirty() { $("dirty-note").classList.toggle("hidden", !state.dirty); }
+function updateDirty() {
+  $("dirty-note").classList.toggle("hidden", !state.dirty);
+  $("save-btn").classList.toggle("needs-save", state.dirty); // pulse while unsaved
+}
 
 // ===========================================================================
 // Entry dialog
@@ -739,7 +752,12 @@ function newId() {
 // Two-factor (TOTP): import a setup QR / key, show live codes, export a QR
 // ===========================================================================
 function wireTotp() {
-  $("totp-remove").onclick = () => setDialogTotp(null);
+  // The header collapses/expands the whole 2FA section (it's optional per entry).
+  const block = $("totp-toggle").parentElement;
+  $("totp-toggle").onclick = () => block.classList.toggle("collapsed");
+  $("totp-toggle").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); block.classList.toggle("collapsed"); }
+  });
   $("totp-paste-btn").onclick = pasteQrFromClipboard;
   $("totp-file-btn").onclick = () => $("totp-file-input").click();
   $("totp-file-input").onchange = () => {
@@ -757,9 +775,10 @@ function wireTotp() {
 function setDialogTotp(totp) {
   state.editingTotp = totp;
   const has = !!totp;
+  // Auto-expand when there's a code to show; collapse otherwise (default).
+  $("totp-toggle").parentElement.classList.toggle("collapsed", !has);
   $("totp-empty").classList.toggle("hidden", has);
   $("totp-set").classList.toggle("hidden", !has);
-  $("totp-remove").classList.toggle("hidden", !has);
   totpError("");
   if (has) {
     $("totp-dlg-label").textContent =

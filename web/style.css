@@ -115,6 +115,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 button.primary { background: var(--accent); border-color: var(--accent); color: white; }
 button.primary:hover { background: var(--accent-hover); }
 button.ghost { background: transparent; }
+button.ghost:hover { background: var(--surface-2); }
 button.small { padding: 7px 11px; font-size: .9rem; }
 
 /* No reserved min-height: when there's no error the card hugs its content. */
@@ -123,6 +124,13 @@ button.small { padding: 7px 11px; font-size: .9rem; }
 
 /* ---------- Vault screen ---------- */
 .vault-name { font-weight: 600; margin: 0 0 12px; color: var(--text); }
+
+/* Save button gently pulses (inverting colours) while there are unsaved changes. */
+@keyframes save-pulse {
+  0%, 100% { background-color: var(--surface-2); color: var(--text); }
+  50%      { background-color: var(--text);      color: var(--bg); }
+}
+#save-btn.needs-save { animation: save-pulse 1.6s ease-in-out infinite; }
 .topbar { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
 .topbar-row { display: flex; gap: 8px; align-items: center; }
 .topbar-row #search { flex: 1; }
@@ -141,6 +149,19 @@ button.small { padding: 7px 11px; font-size: .9rem; }
 .muted { color: var(--muted); text-align: center; margin-top: 40px; }
 
 .entries { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+
+/* Full-width "add entry" button under the list: just a "+" until hovered, then
+   it lights up and reveals its label. */
+.add-bottom {
+  width: 100%; margin-top: 10px; padding: 14px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: var(--surface); border: 1px dashed var(--border); color: var(--muted);
+  border-radius: var(--radius); cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.add-bottom .add-label { display: none; font-weight: 600; }
+.add-bottom:hover { background: var(--border); border-color: var(--border); color: var(--text); }
+.add-bottom:hover .add-label { display: inline; }
 .entry {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
   padding: 12px 14px; display: flex; align-items: center; gap: 12px;
@@ -224,8 +245,16 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
   padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;
   background: var(--surface-2);
 }
-.totp-head { display: flex; align-items: center; justify-content: space-between; font-size: .85rem; color: var(--muted); }
+.totp-head { display: flex; align-items: center; justify-content: space-between; font-size: .85rem; color: var(--muted); cursor: pointer; user-select: none; }
 .totp-head > span { display: inline-flex; align-items: center; gap: 6px; }
+.totp-head-actions { gap: 8px; }
+.totp-chevron { color: var(--text); transition: transform .2s; }        /* bold white chevron */
+.totp-body { display: flex; flex-direction: column; gap: 10px; }
+.totp-block.collapsed .totp-body { display: none; }                     /* collapsed to header only */
+.totp-block:not(.collapsed) .totp-chevron { transform: rotate(180deg); } /* points up when open */
+/* Gentle bob hints the header is expandable (only while collapsed). */
+@keyframes chevron-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(3px); } }
+.totp-block.collapsed .totp-chevron { animation: chevron-bob 1.3s ease-in-out infinite; }
 #totp-empty { display: flex; flex-direction: column; gap: 10px; }
 .totp-import { display: flex; gap: 8px; }
 .totp-import #totp-paste-btn { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }

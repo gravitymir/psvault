@@ -12,6 +12,7 @@
     <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
     <symbol id="i-save" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></symbol>
     <symbol id="i-qr-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><line x1="17.5" y1="14" x2="17.5" y2="21"/><line x1="14" y1="17.5" x2="21" y2="17.5"/></symbol>
+    <symbol id="i-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></symbol>
     <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></symbol>
     <symbol id="i-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></symbol>
     <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
@@ -60,7 +61,7 @@
           </div>
           <span class="pw-row">
             <input type="password" id="new-password" placeholder="New master password" autocomplete="off" />
-            <button type="button" id="new-reveal-btn" class="small ghost" title="Hold to show"><svg class="icon"><use href="#i-eye"/></svg></button>
+            <button type="button" id="new-reveal-btn" class="small" title="Hold to show"><svg class="icon"><use href="#i-eye"/></svg></button>
           </span>
           <input type="password" id="new-password2" placeholder="Repeat password" autocomplete="off" />
           <button id="new-btn" class="primary">Create vault</button>
@@ -90,7 +91,7 @@
       <header class="topbar">
         <div class="topbar-row">
           <input type="search" id="search" placeholder="Search…" />
-          <button id="add-btn" class="primary small" title="Add entry"><svg class="icon"><use href="#i-plus"/></svg></button>
+          <button id="add-btn" class="small" title="Add entry"><svg class="icon"><use href="#i-plus"/></svg></button>
           <button id="import-2fa-btn" class="small" title="Import all 2FA from a Google Authenticator export QR"><svg class="icon"><use href="#i-qr-plus"/></svg></button>
           <input type="file" id="migration-input" accept="image/*" hidden />
           <button id="save-btn" class="small" title="Save"><svg class="icon"><use href="#i-save"/></svg></button>
@@ -110,7 +111,11 @@
       </header>
       <p id="dirty-note" class="dirty hidden">You have unsaved changes — don't forget to Save.</p>
       <ul id="entry-list" class="entries"></ul>
-      <p id="empty-note" class="muted hidden">Empty. Click “+ Entry” to add one.</p>
+      <p id="empty-note" class="muted hidden">Empty. Click “+” to add one.</p>
+      <button id="add-entry-bottom" class="add-bottom" title="Add entry">
+        <svg class="icon"><use href="#i-plus"/></svg>
+        <span class="add-label">Add entry</span>
+      </button>
     </section>
   </main>
 
@@ -123,8 +128,8 @@
       <label>Password
         <span class="pw-row">
           <input id="f-password" type="password" autocomplete="off" />
-          <button type="button" id="reveal-btn" class="small ghost" title="Show / hide"><svg class="icon"><use href="#i-eye"/></svg></button>
-          <button type="button" id="gen-btn" class="small ghost" title="Generate"><svg class="icon"><use href="#i-generate"/></svg></button>
+          <button type="button" id="reveal-btn" class="small" title="Show / hide"><svg class="icon"><use href="#i-eye"/></svg></button>
+          <button type="button" id="gen-btn" class="small" title="Generate"><svg class="icon"><use href="#i-generate"/></svg></button>
         </span>
         <span class="strength"><span id="strength-bar"></span></span>
         <span class="gen-opts">
@@ -139,12 +144,15 @@
       <label>Notes<textarea id="f-notes" rows="3"></textarea></label>
 
       <!-- ===== Two-factor (TOTP) ===== -->
-      <div class="totp-block">
-        <div class="totp-head">
-          <span><svg class="icon"><use href="#i-shield"/></svg> Two-factor code (TOTP)</span>
-          <button type="button" id="totp-remove" class="small ghost hidden" title="Remove 2FA">Remove</button>
+      <div class="totp-block collapsed">
+        <div class="totp-head" id="totp-toggle" role="button" tabindex="0">
+          <span class="totp-title"><svg class="icon"><use href="#i-shield"/></svg> Two-factor code (TOTP)</span>
+          <span class="totp-head-actions">
+            <svg class="icon totp-chevron"><use href="#i-chevron-down"/></svg>
+          </span>
         </div>
 
+        <div class="totp-body">
         <!-- No secret yet: import from a QR image or a setup key -->
         <div id="totp-empty">
           <div class="totp-import">
@@ -164,6 +172,7 @@
             <span id="totp-dlg-ring" class="totp-ring" title="seconds until it changes">30</span>
           </div>
           <span id="totp-dlg-label" class="muted"></span>
+        </div>
         </div>
       </div>
 
@@ -192,9 +201,9 @@
     <form method="dialog" id="confirm-form">
       <p id="confirm-text"></p>
       <menu>
-        <button value="cancel" class="ghost">Cancel</button>
-        <button value="new" id="confirm-new">Save as new…</button>
-        <button value="yes" id="confirm-yes" class="primary" autofocus>Yes, overwrite</button>
+        <button value="cancel" class="ghost">cancel</button>
+        <button value="new" id="confirm-new">save as</button>
+        <button value="yes" id="confirm-yes" class="primary" autofocus>overwrite</button>
       </menu>
     </form>
   </dialog>
